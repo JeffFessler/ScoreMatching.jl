@@ -61,7 +61,7 @@ Maximum-likelihood estimation
 is impractical for complicated models
 where the normalizing constant is intractable.
 
-[Hyväarinen 2005](http://jmlr.org/papers/v6/hyvarinen05a.html)
+[Hyvärinen 2005](http://jmlr.org/papers/v6/hyvarinen05a.html)
 proposed an alternative called
 _score matching_
 that circumvents
@@ -139,27 +139,28 @@ jim(y1, y2, tmp; title="Simplex parameterization", nrow=1)
 # Define model distribution
 
 nmix = 3 # how many gaussians in the mixture model
-function make_mix(θ ; σmin::Real=1e-2)
+function model(θ ; σmin::Real=1e-2)
     mu = θ[1:nmix]
     sig = σmin .+ exp.(θ[nmix .+ (1:nmix)]) # ensure σ > 0
     p = map_r_s(θ[2nmix .+ (1:(nmix-1))])
 #@show p
     tmp = [(μ,σ) for (μ,σ) in zip(mu, sig)]
-    mix = MixtureModel(Normal, tmp, p)
-    return mix
+    return MixtureModel(Normal, tmp, p)
 end
 
+#=
 function make_model_score(θ)
     mix = make_mix(θ)
     return score(mix)
 end
+=#
 
-function fit2(x::AbstractVector{<:Real}, θ)
-    model_score = make_model_score(θ)
+function fit2(x::AbstractVector{<:Real}, θ) # score-matching cost function
+    model_score = score(model(θ))
     return sum(abs2, model_score.(x) - data_score.(x)) / T
 end
 
-fit1 = (θ) -> fit2(data, θ) # minimize this
+fit1 = (θ) -> fit2(data, θ) # minimize this score-matching cost function
 
 # Initial crude guess of mixture model parameters
 θ0 = [4, 7, 9, 0.1, 0.1, 0.5, 0, 0]
@@ -170,36 +171,15 @@ pf = plot(pdf(data_dis); xlims = (-1, 25), label="Gamma pdf",
     xlabel = L"x",
     ylabel = L"p(x) \ \mathrm{ and } \ p(x;θ)",
 )
-tmp = make_mix(θ0)
-plot!(pf, pdf(tmp), label = "Initial Gaussian Mixture", color=:blue)
+plot!(pf, pdf(model(θ0)), label = "Initial Gaussian mixture", color=:blue)
 
 #prompt()
-#gui(); throw()
 
 
 opt_sm = optimize(fit1, θ0, BFGS(); autodiff = :forward)
 θsm = minimizer(opt_sm)
-#gui(); throw()
 
-#=
-#todo cut 
-function gd(θ; niter=100, step=1e-0)
-    θ = collect(θ0)
-    for _ in 1:niter
-#       θ -= step * ForwardDiff.gradient(fit1, θ)
-        θ -= step * gradient(fit1)(θ)
-#       @show fit1(θ)
-    end
-    return θ
-end
-
-θh = gd(θ0)
-
-tmp = make_mix(θh)
-=#
-
-tmp = make_mix(θsm)
-plot!(pf, pdf(tmp), label = "Final Gaussian Mixture", color=:red)
+plot!(pf, pdf(model(θsm)), label = "SM Gaussian mixture", color=:red)
 
 
 #=
@@ -209,9 +189,9 @@ The largest mismatch is in the tails of the distribution
 where there are few (if any) data points.
 =#
 ps = plot(data_score; xlims=(1,20), label = "Data score function",
-    xticks=[1,20], xlabel=L"x")
-tmp = make_model_score(θh)
-plot!(ps, tmp; label = "Model score function", color=:red)
+    xticks=[1,20], xlabel=L"x", color=:green)
+plot!(ps, score(model(θsm)); label = "SM score function", color=:red)
+
 
 #=
 ## Maximum-likelihood estimation
@@ -223,19 +203,44 @@ As expected,
 ML estimation leads to a lower negative log-likelihood.
 =#
 
-negloglike(θ) = (-1/T) * sum(logpdf(make_mix(θ)), data)
+negloglike(θ) = (-1/T) * sum(logpdf(model(θ)), data)
 opt_ml = optimize(negloglike, θsm, BFGS(); autodiff = :forward)
 θml = minimizer(opt_ml)
-negloglike.([θml, θsm, θh])
+negloglike.([θml, θsm, θ0])
 
 #=
-Bafflingly, ML estimation leads to much worse fits to the pdf,
+Curiously,
+ML estimation here leads to much worse fits to the pdf
+than score matching,
 even though we initialized the ML optimizer
 with the score-matching parameters.
+Perhaps the landscape of the log-likelihood
+is less well-behaved
+than that of the SM cost.
 =#
-plot!(pf, pdf(make_mix(θml)), label = "ML Gaussian Mixture", color=:magenta)
-plot!(ps, make_model_score(θml), label = "ML score function", color=:magenta)
+plot!(pf, pdf(model(θml)), label = "ML Gaussian mixture", color=:magenta)
+plot!(ps, score(model(θml)), label = "ML score function", color=:magenta)
 plot(pf, ps)
+
+
+#=
+## Practical score matching
+
+The above SM fitting process
+used `score(data_dis)`,
+the score-function of the data distribution,
+which is unknown in practical situations.
+
+[Hyvärinen 2005](http://jmlr.org/papers/v6/hyvarinen05a.html)
+derived a more practical cost function
+that is independent of the unknown data score function.
+
+todo
+xx
+
+=#
+
+#gui(); throw()
 
 
 #=
