@@ -139,10 +139,11 @@ jim(y1, y2, tmp; title="Simplex parameterization", nrow=1)
 # Define model distribution
 
 nmix = 3 # how many gaussians in the mixture model
-function make_mix(θ)
+function make_mix(θ ; σmin::Real=1e-2)
     mu = θ[1:nmix]
-    sig = exp.(θ[nmix .+ (1:nmix)]) # ensure σ > 0
+    sig = σmin .+ exp.(θ[nmix .+ (1:nmix)]) # ensure σ > 0
     p = map_r_s(θ[2nmix .+ (1:(nmix-1))])
+#@show p
     tmp = [(μ,σ) for (μ,σ) in zip(mu, sig)]
     mix = MixtureModel(Normal, tmp, p)
     return mix
@@ -198,7 +199,7 @@ tmp = make_mix(θh)
 =#
 
 tmp = make_mix(θsm)
-plot!(pf, pdf(tmp), label = "Final Gaussian Mixture", color=:magenta)
+plot!(pf, pdf(tmp), label = "Final Gaussian Mixture", color=:red)
 
 
 #=
@@ -210,7 +211,31 @@ where there are few (if any) data points.
 ps = plot(data_score; xlims=(1,20), label = "Data score function",
     xticks=[1,20], xlabel=L"x")
 tmp = make_model_score(θh)
-plot!(ps, tmp; label = "Model score function")
+plot!(ps, tmp; label = "Model score function", color=:red)
+
+#=
+## Maximum-likelihood estimation
+
+This toy example is simple enough
+that we can apply ML estimation to it directly.
+
+As expected,
+ML estimation leads to a lower negative log-likelihood.
+=#
+
+negloglike(θ) = (-1/T) * sum(logpdf(make_mix(θ)), data)
+opt_ml = optimize(negloglike, θsm, BFGS(); autodiff = :forward)
+θml = minimizer(opt_ml)
+negloglike.([θml, θsm, θh])
+
+#=
+Bafflingly, ML estimation leads to much worse fits to the pdf,
+even though we initialized the ML optimizer
+with the score-matching parameters.
+=#
+plot!(pf, pdf(make_mix(θml)), label = "ML Gaussian Mixture", color=:magenta)
+plot!(ps, make_model_score(θml), label = "ML score function", color=:magenta)
+plot(pf, ps)
 
 
 #=
