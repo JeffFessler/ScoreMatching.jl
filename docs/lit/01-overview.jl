@@ -1,7 +1,7 @@
 #=
 # [Score Matching overview](@id 01-overview)
 
-This page illustrates the Julia package
+This page introduces the Julia package
 [`ScoreMatching`](https://github.com/JeffFessler/ScoreMatching.jl).
 
 This page was generated from a single Julia file:
@@ -25,7 +25,13 @@ This page was generated from a single Julia file:
 
 using ScoreMatching
 using MIRTjim: jim, prompt
-using Plots: plot, plot!, scatter, default
+using Distributions: Gamma, Normal, MixtureModel, logpdf, pdf
+import ForwardDiff
+using LaTeXStrings
+using Random: seed!; seed!(0)
+#using Flux:
+#import ReverseDiff
+using Plots: plot, plot!, scatter, default, gui
 using InteractiveUtils: versioninfo
 default(label="", markerstrokecolor=:auto)
 
@@ -58,8 +64,8 @@ _score matching_
 that circumvents
 needing to find the normalizing constant.
 
-The idea of the score matching approach
-is 
+The idea behind the score matching approach
+to model fitting is
 ```math
 \hat{\mathbf{θ}} = \arg \min_{\mathbf{θ}}
 \frac{1}{T} ∑_{t=1}^T
@@ -91,25 +97,46 @@ to a mixture of gaussians.
 
 =#
 
-using Distributions: Gamma, Normal, MixtureModel, logpdf, pdf
-#using Flux:
-import ForwardDiff
-using LaTeXStrings
-#import ReverseDiff
 
+# Generate training data
 T = 100
 data_dis = Gamma(8, 1.0)
-
 data_logpdf = x -> logpdf(data_dis, x)
 data_score = x -> ForwardDiff.derivative(data_logpdf, x)
-
 data = rand(data_dis, T)
-
 scatter(data, zeros(T))
 
+
+#=
+To perform unconstrained minimization
+of a ``D``-component mixture,
+the following mapping from ``\mathbb{R}^{D-1}``
+to the ``D``-dimensional simplex is helpful.
+It is the inverse of the
+[Additive logratio transform](https://en.wikipedia.org/wiki/Compositional_data#Additive_logratio_transform).
+=#
+
+function map_r_s(y::AbstractVector)
+    p = exp.([y; 1])
+    return p ./ sum(p)
+end
+map_r_s(y::Real...) = map_r_s([y...])
+
+y1 = range(-1,1,101) * 9
+y2 = range(-1,1,101) * 9
+tmp = map_R2_S3.(y1, y2')
+jim(y1, y2, tmp; title="Simplex parameterization", nrow=1)
+
+
+# Define model distribution
+
+nmix = 3 # how many gaussians in the mixture model
 function make_mix(θ)
-    (mu1, mu2, sig1, sig2, π1) = θ # model parameters
-    mix = MixtureModel(Normal, [(mu1, sig1), (mu2, sig2)], [π1, 1-π1])
+    mu = θ[1:nmix]
+    sig = exp.(θ[nmix .+ (1:nmix)]) # ensure σ > 0
+    p = map_r_s(θ[2nmix .+ (1:(nmix-1))])
+    tmp = [(μ,σ) for (μ,σ) in zip(mu, sig)]
+    mix = MixtureModel(Normal, tmp, p)
     return mix
 end
 
@@ -127,39 +154,48 @@ end
 fit1 = (θ) -> fit2(data, θ) # minimize this
 
 # Initial guess of mixture model parameters
-θ0 = (4, 9, 2, 2, 0.3)
-tmp = make_model_score(θ0)
-tmp = make_mix(θ0)
+θ0 = [4, 7, 11, 0.1, 0.1, 0.5, 0, 0]
 
+# Plot data pdf and initial model pdf
 data_pdf = x -> pdf(data_dis, x)
+pf = plot(data_pdf; xlims = (-1, 25), label="Gamma pdf",
+    color = :green,
+    xlabel = L"x",
+    ylabel = L"p(x) \ \mathrm{ and } \ p(x;θ)",
+)
+tmp = make_mix(θ0)
+plot!(pf, x -> pdf(tmp, x), label = "Initial Gaussian Mixture", color=:blue)
 
-#function plot_fit(θ; label="Initial")
-    pf = plot(data_pdf; xlims = (-1, 25), label="Gamma pdf",
-     color = :green,
-     xlabel = L"x",
-     ylabel = L"p(x) \ \mathrm{ and } \ p(x;θ)",
-    )
-    tmp = make_mix(θ0)
-    plot!(pf, x -> pdf(tmp, x), label = "Initial Gaussian Mixture", color=:blue)
-    #return p
-#end
+#prompt()
+#gui(); throw()
 
 
-# function score
-
-function gd(θ; niter=300, step=3e-2)
+function gd(θ; niter=100, step=1e-0)
     θ = collect(θ0)
     for _ in 1:niter
         θ -= step * ForwardDiff.gradient(fit1, θ)
-        @show fit1(θ)
+#       @show fit1(θ)
     end
     return θ
 end
 
 θh = gd(θ0)
 
-    tmp = make_mix(θh)
-    plot!(pf, x -> pdf(tmp, x), label = "Final Gaussian Mixture", color=:magenta)
+tmp = make_mix(θh)
+plot!(pf, x -> pdf(tmp, x), label = "Final Gaussian Mixture", color=:magenta)
+
+
+#=
+Plot the data score and model score functions
+to see how well they match.
+The largest mismatch is in the tails of the distribution
+where there are few (if any) data points.
+=#
+ps = plot(data_score; xlims=(1,20), label = "Data score function",
+    xticks=[1,20], xlabel=L"x")
+tmp = make_model_score(θh)
+plot!(ps, tmp; label = "Model score function")
+
 
 #=
 
