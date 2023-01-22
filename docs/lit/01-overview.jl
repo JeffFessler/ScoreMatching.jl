@@ -25,7 +25,8 @@ This page was generated from a single Julia file:
 
 using ScoreMatching
 using MIRTjim: jim, prompt
-using Distributions: Gamma, Normal, MixtureModel, logpdf, pdf
+using Distributions: Distribution, Gamma, Normal, MixtureModel, logpdf, pdf
+import Distributions: logpdf, pdf
 import ForwardDiff
 using LaTeXStrings
 using Random: seed!; seed!(0)
@@ -97,12 +98,16 @@ to a mixture of gaussians.
 
 =#
 
+# Some convenience methods
+logpdf(d::Distribution) = x -> logpdf(d, x)
+pdf(d::Distribution) = x -> pdf(d, x)
+derivative(f::Function) = x -> ForwardDiff.derivative(f, x)
+score(d::Distribution) = derivative(logpdf(d))
 
 # Generate training data
 T = 100
 data_dis = Gamma(8, 1.0)
-data_logpdf = x -> logpdf(data_dis, x)
-data_score = x -> ForwardDiff.derivative(data_logpdf, x)
+data_score = derivative(logpdf(data_dis))
 data = rand(data_dis, T)
 scatter(data, zeros(T))
 
@@ -124,7 +129,7 @@ map_r_s(y::Real...) = map_r_s([y...])
 
 y1 = range(-1,1,101) * 9
 y2 = range(-1,1,101) * 9
-tmp = map_R2_S3.(y1, y2')
+tmp = map_r_s.(y1, y2')
 jim(y1, y2, tmp; title="Simplex parameterization", nrow=1)
 
 
@@ -142,8 +147,7 @@ end
 
 function make_model_score(θ)
     mix = make_mix(θ)
-    model_logpdf = x -> logpdf(mix, x)
-    return x -> ForwardDiff.derivative(model_logpdf, x)
+    return score(mix)
 end
 
 function fit2(x::AbstractVector{<:Real}, θ)
@@ -153,18 +157,17 @@ end
 
 fit1 = (θ) -> fit2(data, θ) # minimize this
 
-# Initial guess of mixture model parameters
+# Initial crude guess of mixture model parameters
 θ0 = [4, 7, 11, 0.1, 0.1, 0.5, 0, 0]
 
 # Plot data pdf and initial model pdf
-data_pdf = x -> pdf(data_dis, x)
-pf = plot(data_pdf; xlims = (-1, 25), label="Gamma pdf",
+pf = plot(pdf(data_dis); xlims = (-1, 25), label="Gamma pdf",
     color = :green,
     xlabel = L"x",
     ylabel = L"p(x) \ \mathrm{ and } \ p(x;θ)",
 )
 tmp = make_mix(θ0)
-plot!(pf, x -> pdf(tmp, x), label = "Initial Gaussian Mixture", color=:blue)
+plot!(pf, pdf(tmp), label = "Initial Gaussian Mixture", color=:blue)
 
 #prompt()
 #gui(); throw()
@@ -182,7 +185,7 @@ end
 θh = gd(θ0)
 
 tmp = make_mix(θh)
-plot!(pf, x -> pdf(tmp, x), label = "Final Gaussian Mixture", color=:magenta)
+plot!(pf, pdf(tmp), label = "Final Gaussian Mixture", color=:magenta)
 
 
 #=
