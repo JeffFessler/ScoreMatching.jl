@@ -30,6 +30,8 @@ import Distributions: logpdf, pdf
 import ForwardDiff
 using LaTeXStrings
 using Random: seed!; seed!(0)
+using Optim: optimize, BFGS
+import Optim: minimizer
 #using Flux:
 #import ReverseDiff
 using Plots: plot, plot!, scatter, default, gui
@@ -102,6 +104,7 @@ to a mixture of gaussians.
 logpdf(d::Distribution) = x -> logpdf(d, x)
 pdf(d::Distribution) = x -> pdf(d, x)
 derivative(f::Function) = x -> ForwardDiff.derivative(f, x)
+gradient(f::Function) = x -> ForwardDiff.gradient(f, x)
 score(d::Distribution) = derivative(logpdf(d))
 
 # Generate training data
@@ -158,7 +161,7 @@ end
 fit1 = (θ) -> fit2(data, θ) # minimize this
 
 # Initial crude guess of mixture model parameters
-θ0 = [4, 7, 11, 0.1, 0.1, 0.5, 0, 0]
+θ0 = [4, 7, 9, 0.1, 0.1, 0.5, 0, 0]
 
 # Plot data pdf and initial model pdf
 pf = plot(pdf(data_dis); xlims = (-1, 25), label="Gamma pdf",
@@ -173,10 +176,17 @@ plot!(pf, pdf(tmp), label = "Initial Gaussian Mixture", color=:blue)
 #gui(); throw()
 
 
+opt_sm = optimize(fit1, θ0, BFGS(); autodiff = :forward)
+θsm = minimizer(opt_sm)
+#gui(); throw()
+
+#=
+#todo cut 
 function gd(θ; niter=100, step=1e-0)
     θ = collect(θ0)
     for _ in 1:niter
-        θ -= step * ForwardDiff.gradient(fit1, θ)
+#       θ -= step * ForwardDiff.gradient(fit1, θ)
+        θ -= step * gradient(fit1)(θ)
 #       @show fit1(θ)
     end
     return θ
@@ -185,6 +195,9 @@ end
 θh = gd(θ0)
 
 tmp = make_mix(θh)
+=#
+
+tmp = make_mix(θsm)
 plot!(pf, pdf(tmp), label = "Final Gaussian Mixture", color=:magenta)
 
 
