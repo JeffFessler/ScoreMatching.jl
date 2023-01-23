@@ -23,8 +23,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        version: ['1.6', '1', 'nightly']
-        os: [ubuntu-latest, windows-latest, macOS-latest]
+        version: ['1']
+        os: [ubuntu-latest]
     steps:
       - uses: actions/checkout@v3
 

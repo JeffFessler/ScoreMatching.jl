@@ -19,6 +19,6 @@ the gradient of a log-likelihood
 ``\nabla_{\mathbf{x} \log p(\mathbf{x}; \mathbf{\theta})``
 as defined 
 by
-[Hyväarinen 2005](http://jmlr.org/papers/v6/hyvarinen05a.html).
+[Hyvärinen 2005](http://jmlr.org/papers/v6/hyvarinen05a.html).
 
 See the "Examples" for details.
