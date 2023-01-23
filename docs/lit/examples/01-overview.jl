@@ -149,7 +149,7 @@ function model(θ ; σmin::Real=1e-2)
     mu = θ[1:nmix]
     sig = θ[nmix .+ (1:nmix)]
     any(<(σmin), sig) && throw("bad σ")
-#   sig = σmin .+ exp.(sig) # ensure σ > 0
+    ## sig = σmin .+ exp.(sig) # ensure σ > 0
     p = map_r_s(θ[2nmix .+ (1:(nmix-1))])
     tmp = [(μ,σ) for (μ,σ) in zip(mu, sig)]
     return MixtureModel(Normal, tmp, p)
@@ -290,7 +290,7 @@ end;
 cost_sp1 = (θ) -> cost_sp2(data, θ) # minimize this score-matching cost function
 opt_sp = optimize(cost_sp1, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
 θsp = minimizer(opt_sp)
-cost_sm4.([θsp, θsm, θml])
+cost_sp1.([θsp, θsm, θml])
 
 #
 plot!(pf, pdf(model(θsp)), label = "SP Gaussian mixture", color=:cyan)
