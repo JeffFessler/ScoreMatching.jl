@@ -31,7 +31,7 @@ import ForwardDiff
 using LinearAlgebra: tr
 using LaTeXStrings
 using Random: seed!; seed!(0)
-using Optim: optimize, BFGS
+using Optim: optimize, BFGS, Fminbox
 import Optim: minimizer
 #src import ReverseDiff
 using Plots: plot, plot!, scatter, default, gui
@@ -118,7 +118,7 @@ T = 100
 data_dis = Gamma(8, 1.0)
 data_score = derivative(logpdf(data_dis))
 data = rand(data_dis, T)
-scatter(data, zeros(T))
+pd = scatter(data, zeros(T))
 
 
 #=
@@ -131,7 +131,7 @@ It is the inverse of the
 =#
 
 function map_r_s(y::AbstractVector)
-    p = exp.([y; 1])
+    p = exp.([y; 0])
     return p / sum(p)
 end
 map_r_s(y::Real...) = map_r_s([y...])
@@ -147,7 +147,9 @@ jim(y1, y2, tmp; title="Simplex parameterization", nrow=1)
 nmix = 3 # how many gaussians in the mixture model
 function model(θ ; σmin::Real=1e-2)
     mu = θ[1:nmix]
-    sig = σmin .+ exp.(θ[nmix .+ (1:nmix)]) # ensure σ > 0
+    sig = θ[nmix .+ (1:nmix)]
+    any(<(σmin), sig) && throw("bad σ")
+#   sig = σmin .+ exp.(sig) # ensure σ > 0
     p = map_r_s(θ[2nmix .+ (1:(nmix-1))])
     tmp = [(μ,σ) for (μ,σ) in zip(mu, sig)]
     return MixtureModel(Normal, tmp, p)
@@ -163,7 +165,8 @@ end;
 cost_sm1 = (θ) -> cost_sm2(data, θ);
 
 # Initial crude guess of mixture model parameters
-θ0 = [4, 7, 9, 0.1, 0.1, 0.5, 0, 0];
+θ0 = [5, 7, 9, 1.5, 1.5, 1.5, 0, 0];
+#src θ0 = [6, 9, 2, 2, 0];
 
 # Plot data pdf and initial model pdf
 pf = plot(pdf(data_dis); xlims = (-1, 25), label="Gamma pdf",
@@ -179,7 +182,9 @@ prompt()
 
 # ## Impractical score matching
 
-opt_sm = optimize(cost_sm1, θ0, BFGS(); autodiff = :forward)
+lower = [fill(0, nmix); fill(1.0, nmix); fill(-Inf, nmix-1)]
+upper = [fill(Inf, nmix); fill(Inf, nmix); fill(Inf, nmix-1)]
+opt_sm = optimize(cost_sm1, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
 θsm = minimizer(opt_sm)
 
 plot!(pf, pdf(model(θsm)), label = "SM Gaussian mixture", color=:red)
@@ -199,6 +204,10 @@ ps = plot(data_score; xlims=(1,20), label = "Data score function",
 plot!(ps, score(model(θsm)); label = "SM score function", color=:red)
 
 
+#
+prompt()
+
+
 #=
 ## Maximum-likelihood estimation
 
@@ -212,7 +221,7 @@ ML estimation leads to a lower negative log-likelihood.
 =#
 
 negloglike(θ) = (-1/T) * sum(logpdf(model(θ)), data)
-opt_ml = optimize(negloglike, θsm, BFGS(); autodiff = :forward)
+opt_ml = optimize(negloglike, lower, upper, θsm, Fminbox(BFGS()); autodiff = :forward)
 θml = minimizer(opt_ml)
 negloglike.([θml, θsm, θ0])
 
@@ -229,6 +238,9 @@ than that of the SM cost.
 plot!(pf, pdf(model(θml)), label = "ML Gaussian mixture", color=:magenta)
 plot!(ps, score(model(θml)), label = "ML score function", color=:magenta)
 plot(pf, ps)
+
+#
+prompt()
 
 
 #=
@@ -268,26 +280,30 @@ Subsequent pages deal with that issue.)
 
 
 # Practical score-matching cost function
-function cost_sm3(x::AbstractVector{<:Real}, θ)
+function cost_sp2(x::AbstractVector{<:Real}, θ)
     tmp = model(θ)
     model_score = score(tmp)
     return (1/T) * (sum(score_deriv(tmp), x) +
         0.5 * sum(abs2 ∘ model_score, x))
 end;
 
-cost_sm4 = (θ) -> cost_sm3(data, θ) # minimize this score-matching cost function
-opt_sm4 = optimize(cost_sm4, θ0, BFGS(); autodiff = :forward)
-θsm4 = minimizer(opt_sm4)
-cost_sm4.([θsm4, θsm, θml])
+cost_sp1 = (θ) -> cost_sp2(data, θ) # minimize this score-matching cost function
+opt_sp = optimize(cost_sp1, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
+θsp = minimizer(opt_sp)
+cost_sm4.([θsp, θsm, θml])
 
 #
-plot!(pf, pdf(model(θsm4)), label = "SM4 Gaussian mixture", color=:cyan)
-plot!(ps, score(model(θsm4)), label = "SM4 score function", color=:cyan)
-plot(pf, ps)
+plot!(pf, pdf(model(θsp)), label = "SP Gaussian mixture", color=:cyan)
+plot!(ps, score(model(θsp)), label = "SP score function", color=:cyan)
+pfs = plot(pf, ps)
 
-# Curiously the supposedly equivalent SM cost function works much worse.
-# Could it be local extrema?
-# More investigation is needed!
+#=
+Curiously the supposedly equivalent SM cost function works much worse.
+Like the ML estimate,
+the first two ``σ`` values are stuck at the `lower` limit.
+Could it be local extrema?
+More investigation is needed!
+=#
 
 
 # ### Reproducibility
