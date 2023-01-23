@@ -28,15 +28,16 @@ using MIRTjim: jim, prompt
 using Distributions: Distribution, Gamma, Normal, MixtureModel, logpdf, pdf
 import Distributions: logpdf, pdf
 import ForwardDiff
+using LinearAlgebra: tr
 using LaTeXStrings
 using Random: seed!; seed!(0)
 using Optim: optimize, BFGS
 import Optim: minimizer
-#using Flux:
-#import ReverseDiff
+#src import ReverseDiff
 using Plots: plot, plot!, scatter, default, gui
 using InteractiveUtils: versioninfo
 default(label="", markerstrokecolor=:auto)
+
 
 # The following line is helpful when running this file as a script;
 # this way it will prompt user to hit a key after each figure is displayed.
@@ -52,9 +53,9 @@ Given ``T``
 training data samples
 ``\mathbf{x}_1, …, \mathbf{x}_T ∈ \mathbb{R}^N``,
 we often want to find the parameters
-``\mathrm{θ}``
+``\mathbf{θ}``
 of a model distribution
-``p(\mathrm{x}; \mathrm{θ})``
+``p(\mathbf{x}; \mathbf{θ})``
 that "best fit" the data.
 
 Maximum-likelihood estimation
@@ -71,6 +72,9 @@ The idea behind the score matching approach
 to model fitting is
 ```math
 \hat{\mathbf{θ}} = \arg \min_{\mathbf{θ}}
+J(\mathbf{θ})
+,\qquad
+J(\mathbf{θ}) =
 \frac{1}{T} ∑_{t=1}^T
 \| \mathbf{s}(\mathbf{x}_t; \mathbf{θ}) - \mathbf{s}(\mathbf{x}_t) \|^2
 ```
@@ -105,7 +109,9 @@ logpdf(d::Distribution) = x -> logpdf(d, x)
 pdf(d::Distribution) = x -> pdf(d, x)
 derivative(f::Function) = x -> ForwardDiff.derivative(f, x)
 gradient(f::Function) = x -> ForwardDiff.gradient(f, x)
+#src hessian(f::Function) = x -> ForwardDiff.hessian(f, x)
 score(d::Distribution) = derivative(logpdf(d))
+score_deriv(d::Distribution) = derivative(score(d)) # scalar x only
 
 # Generate training data
 T = 100
@@ -121,12 +127,12 @@ of a ``D``-component mixture,
 the following mapping from ``\mathbb{R}^{D-1}``
 to the ``D``-dimensional simplex is helpful.
 It is the inverse of the
-[Additive logratio transform](https://en.wikipedia.org/wiki/Compositional_data#Additive_logratio_transform).
+[additive logratio transform](https://en.wikipedia.org/wiki/Compositional_data#Additive_logratio_transform).
 =#
 
 function map_r_s(y::AbstractVector)
     p = exp.([y; 1])
-    return p ./ sum(p)
+    return p / sum(p)
 end
 map_r_s(y::Real...) = map_r_s([y...])
 
@@ -143,43 +149,43 @@ function model(θ ; σmin::Real=1e-2)
     mu = θ[1:nmix]
     sig = σmin .+ exp.(θ[nmix .+ (1:nmix)]) # ensure σ > 0
     p = map_r_s(θ[2nmix .+ (1:(nmix-1))])
-#@show p
     tmp = [(μ,σ) for (μ,σ) in zip(mu, sig)]
     return MixtureModel(Normal, tmp, p)
-end
+end;
 
-#=
-function make_model_score(θ)
-    mix = make_mix(θ)
-    return score(mix)
-end
-=#
-
-function fit2(x::AbstractVector{<:Real}, θ) # score-matching cost function
+# Define score-matching cost function
+function cost_sm2(x::AbstractVector{<:Real}, θ)
     model_score = score(model(θ))
     return sum(abs2, model_score.(x) - data_score.(x)) / T
-end
+end;
 
-fit1 = (θ) -> fit2(data, θ) # minimize this score-matching cost function
+# Minimize this score-matching cost function:
+cost_sm1 = (θ) -> cost_sm2(data, θ);
 
 # Initial crude guess of mixture model parameters
-θ0 = [4, 7, 9, 0.1, 0.1, 0.5, 0, 0]
+θ0 = [4, 7, 9, 0.1, 0.1, 0.5, 0, 0];
 
 # Plot data pdf and initial model pdf
 pf = plot(pdf(data_dis); xlims = (-1, 25), label="Gamma pdf",
-    color = :green,
+    color = :black,
     xlabel = L"x",
     ylabel = L"p(x) \ \mathrm{ and } \ p(x;θ)",
 )
 plot!(pf, pdf(model(θ0)), label = "Initial Gaussian mixture", color=:blue)
 
-#prompt()
+#
+prompt()
 
 
-opt_sm = optimize(fit1, θ0, BFGS(); autodiff = :forward)
+# ## Impractical score matching
+
+opt_sm = optimize(cost_sm1, θ0, BFGS(); autodiff = :forward)
 θsm = minimizer(opt_sm)
 
 plot!(pf, pdf(model(θsm)), label = "SM Gaussian mixture", color=:red)
+
+#
+prompt()
 
 
 #=
@@ -189,7 +195,7 @@ The largest mismatch is in the tails of the distribution
 where there are few (if any) data points.
 =#
 ps = plot(data_score; xlims=(1,20), label = "Data score function",
-    xticks=[1,20], xlabel=L"x", color=:green)
+    xticks=[1,20], xlabel=L"x", color=:black)
 plot!(ps, score(model(θsm)); label = "SM score function", color=:red)
 
 
@@ -198,6 +204,8 @@ plot!(ps, score(model(θsm)); label = "SM score function", color=:red)
 
 This toy example is simple enough
 that we can apply ML estimation to it directly.
+In fact, ML estimation is a seemingly more practical optimization problem
+than score matching in this case.
 
 As expected,
 ML estimation leads to a lower negative log-likelihood.
@@ -232,18 +240,55 @@ the score-function of the data distribution,
 which is unknown in practical situations.
 
 [Hyvärinen 2005](http://jmlr.org/papers/v6/hyvarinen05a.html)
-derived a more practical cost function
-that is independent of the unknown data score function.
+derived the following more practical cost function
+that is independent of the unknown data score function:
+```math
+J(\mathbf{θ}) =
+\frac{1}{T} ∑_{t=1}^T
+∑_{i=1}^N ∂_i s_i(\mathbf{x}_t; \mathbf{θ})
+ + \frac{1}{2} | s_i(\mathbf{x}_t; \mathbf{θ}) |^2,
+```
+ignoring a constant that is independent of ``θ,``
+where
+```math
+∂_i s_i(\mathbf{x}; \mathbf{θ})
+=
+\frac{∂}{∂ x_i} s_i(\mathbf{x}; \mathbf{θ})
+=
+\frac{∂^2}{∂ x_i^2} \log p(\mathbf{x}; \mathbf{θ}).
+```
 
-todo
-xx
-
+(For large models
+this version is still a bit impractical
+because it depends on the diagonal
+elements of the Hessian
+of the log prior.
+Subsequent pages deal with that issue.)
 =#
 
-#gui(); throw()
 
+# Practical score-matching cost function
+function cost_sm3(x::AbstractVector{<:Real}, θ)
+    tmp = model(θ)
+    model_score = score(tmp)
+    return (1/T) * (sum(score_deriv(tmp), x) +
+        0.5 * sum(abs2 ∘ model_score, x))
+end;
 
-#=
+cost_sm4 = (θ) -> cost_sm3(data, θ) # minimize this score-matching cost function
+opt_sm4 = optimize(cost_sm4, θ0, BFGS(); autodiff = :forward)
+θsm4 = minimizer(opt_sm4)
+cost_sm4.([θsm4, θsm, θml])
+
+#
+plot!(pf, pdf(model(θsm4)), label = "SM4 Gaussian mixture", color=:cyan)
+plot!(ps, score(model(θsm4)), label = "SM4 score function", color=:cyan)
+plot(pf, ps)
+
+# Curiously the supposedly equivalent SM cost function works much worse.
+# Could it be local extrema?
+# More investigation is needed!
+
 
 # ### Reproducibility
 
@@ -255,4 +300,3 @@ io = IOBuffer(); versioninfo(io); split(String(take!(io)), '\n')
 # And with the following package versions
 
 import Pkg; Pkg.status()
-=#
