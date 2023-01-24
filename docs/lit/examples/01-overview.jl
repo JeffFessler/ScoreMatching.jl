@@ -25,7 +25,8 @@ This page was generated from a single Julia file:
 
 using ScoreMatching
 using MIRTjim: jim, prompt
-using Distributions: Distribution, Gamma, Normal, MixtureModel, logpdf, pdf
+using Distributions: Distribution, Normal, MixtureModel, logpdf, pdf
+using Distributions: Cauchy
 import Distributions: logpdf, pdf
 import ForwardDiff
 using LinearAlgebra: tr
@@ -42,7 +43,7 @@ default(label="", markerstrokecolor=:auto)
 # The following line is helpful when running this file as a script;
 # this way it will prompt user to hit a key after each figure is displayed.
 
-isinteractive() ? jim(:prompt, true) : prompt(:draw);
+isinteractive() ? jim(:prompt, true) : prompt(:pause);
 
 
 #=
@@ -99,7 +100,8 @@ of the (typically unknown) data distribution.
 For didactic purposes,
 we illustrate this basic version of score matching
 by fitting samples from a
-[Gamma distribution](https://en.wikipedia.org/wiki/Gamma_distribution)
+[Gamma distribution](https://en.wikipedia.org/wiki/Gamma_distribution) todo
+[Cauchy distribution](https://en.wikipedia.org/wiki/Cauchy_distribution)
 to a mixture of gaussians.
 
 =#
@@ -115,7 +117,8 @@ score_deriv(d::Distribution) = derivative(score(d)) # scalar x only
 
 # Generate training data
 T = 100
-data_dis = Gamma(8, 1.0)
+#todo data_dis = Gamma(8, 1.0)
+data_dis = Cauchy(12, 2)
 data_score = derivative(logpdf(data_dis))
 data = rand(data_dis, T)
 pd = scatter(data, zeros(T))
@@ -128,10 +131,15 @@ the following mapping from ``\mathbb{R}^{D-1}``
 to the ``D``-dimensional simplex is helpful.
 It is the inverse of the
 [additive logratio transform](https://en.wikipedia.org/wiki/Compositional_data#Additive_logratio_transform).
+(It is related to the
+[softmax function](https://en.wikipedia.org/wiki/Softmax_function).
 =#
 
 function map_r_s(y::AbstractVector)
-    p = exp.([y; 0])
+    y = 0.5 * [y; 0]
+    y .-= maximum(y) # for numerical stability
+    p = exp.(y)
+#   p = 1 .+ tanh.([y; 0])
     return p / sum(p)
 end
 map_r_s(y::Real...) = map_r_s([y...])
@@ -144,15 +152,21 @@ jim(y1, y2, tmp; title="Simplex parameterization", nrow=1)
 
 # Define model distribution
 
-nmix = 3 # how many gaussians in the mixture model
-function model(θ ; σmin::Real=1e-2)
+nmix = 2 # how many gaussians in the mixture model
+function model(θ ;
+    σmin::Real = 1,
+    σmax::Real = 9,
+)
     mu = θ[1:nmix]
     sig = θ[nmix .+ (1:nmix)]
-    any(<(σmin), sig) && throw("bad σ")
+    ## any(<(σmin), sig) && throw("bad σ")
     ## sig = σmin .+ exp.(sig) # ensure σ > 0
+    sig = @. σmin + (σmax - σmin) * (tanh(sig/2) + 1) / 2
     p = map_r_s(θ[2nmix .+ (1:(nmix-1))])
     tmp = [(μ,σ) for (μ,σ) in zip(mu, sig)]
-    return MixtureModel(Normal, tmp, p)
+    mix = MixtureModel(Normal, tmp, p)
+@show mix
+    return mix
 end;
 
 # Define score-matching cost function
@@ -165,8 +179,10 @@ end;
 cost_sm1 = (θ) -> cost_sm2(data, θ);
 
 # Initial crude guess of mixture model parameters
-θ0 = [5, 7, 9, 1.5, 1.5, 1.5, 0, 0];
-#src θ0 = [6, 9, 2, 2, 0];
+θ0 = [5, 7, 9, 1.5, 1.5, 1.5, 0, 0]; # gamma todo
+θ0 = [8, 13, 18, 2.0, 2.0, 2.0, 0, 0];
+θ0 = [10, 15, 2, 2, 0];
+θ0 = [10, 15, -2, -2, 0];
 
 # Plot data pdf and initial model pdf
 pf = plot(pdf(data_dis); xlims = (-1, 25), label="Gamma pdf",
@@ -179,12 +195,21 @@ plot!(pf, pdf(model(θ0)), label = "Initial Gaussian mixture", color=:blue)
 #
 prompt()
 
+# check descent
+if false
+tmp = gradient(cost_sm1)(θ0)
+a = range(0, 9, 101)
+h = a -> cost_sm1(θ0 - a * tmp)
+plot(a, h.(a))
+xx
+end
 
 # ## Impractical score matching
 
-lower = [fill(0, nmix); fill(1.0, nmix); fill(-Inf, nmix-1)]
-upper = [fill(Inf, nmix); fill(Inf, nmix); fill(Inf, nmix-1)]
-opt_sm = optimize(cost_sm1, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
+##lower = [fill(0, nmix); fill(1.0, nmix); fill(-Inf, nmix-1)]
+##upper = [fill(Inf, nmix); fill(10, nmix); fill(Inf, nmix-1)]
+##opt_sm = optimize(cost_sm1, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
+opt_sm = optimize(cost_sm1, θ0, BFGS(); autodiff = :forward)
 θsm = minimizer(opt_sm)
 
 plot!(pf, pdf(model(θsm)), label = "SM Gaussian mixture", color=:red)
