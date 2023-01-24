@@ -26,12 +26,13 @@ This page was generated from a single Julia file:
 using ScoreMatching
 using MIRTjim: jim, prompt
 using Distributions: Distribution, Normal, MixtureModel, logpdf, pdf
-using Distributions: Cauchy
+using Distributions: Cauchy, Gamma, Logistic, TDist
 import Distributions: logpdf, pdf
 import ForwardDiff
-using LinearAlgebra: tr
+using LinearAlgebra: tr, norm
 using LaTeXStrings
 using Random: seed!; seed!(0)
+using StatsBase: mean
 using Optim: optimize, BFGS, Fminbox
 import Optim: minimizer
 #src import ReverseDiff
@@ -100,8 +101,7 @@ of the (typically unknown) data distribution.
 For didactic purposes,
 we illustrate this basic version of score matching
 by fitting samples from a
-[Gamma distribution](https://en.wikipedia.org/wiki/Gamma_distribution) todo
-[Cauchy distribution](https://en.wikipedia.org/wiki/Cauchy_distribution)
+[Gamma distribution](https://en.wikipedia.org/wiki/Gamma_distribution)
 to a mixture of gaussians.
 
 =#
@@ -111,17 +111,19 @@ logpdf(d::Distribution) = x -> logpdf(d, x)
 pdf(d::Distribution) = x -> pdf(d, x)
 derivative(f::Function) = x -> ForwardDiff.derivative(f, x)
 gradient(f::Function) = x -> ForwardDiff.gradient(f, x)
-#src hessian(f::Function) = x -> ForwardDiff.hessian(f, x)
+## hessian(f::Function) = x -> ForwardDiff.hessian(f, x)
 score(d::Distribution) = derivative(logpdf(d))
 score_deriv(d::Distribution) = derivative(score(d)) # scalar x only
 
 # Generate training data
 T = 100
-#todo data_dis = Gamma(8, 1.0)
-data_dis = Cauchy(12, 2)
+data_disn = :(Gamma(8, 1))
+data_dis = eval(data_disn)
 data_score = derivative(logpdf(data_dis))
 data = rand(data_dis, T)
-pd = scatter(data, zeros(T))
+xlims = (-1, 25)
+xticks = [0, 8, 24]
+pf = scatter(data, zeros(T); xlims, xticks, color=:black)
 
 
 #=
@@ -135,11 +137,10 @@ It is the inverse of the
 [softmax function](https://en.wikipedia.org/wiki/Softmax_function).
 =#
 
-function map_r_s(y::AbstractVector)
-    y = 0.5 * [y; 0]
+function map_r_s(y::AbstractVector; scale::Real = 1.0)
+    y = scale * [y; 0]
     y .-= maximum(y) # for numerical stability
     p = exp.(y)
-#   p = 1 .+ tanh.([y; 0])
     return p / sum(p)
 end
 map_r_s(y::Real...) = map_r_s([y...])
@@ -152,40 +153,42 @@ jim(y1, y2, tmp; title="Simplex parameterization", nrow=1)
 
 # Define model distribution
 
-nmix = 2 # how many gaussians in the mixture model
+nmix = 3 # how many gaussians in the mixture model
 function model(θ ;
     σmin::Real = 1,
     σmax::Real = 9,
 )
     mu = θ[1:nmix]
     sig = θ[nmix .+ (1:nmix)]
-    ## any(<(σmin), sig) && throw("bad σ")
+    any(<(σmin), sig) && throw("too small σ")
+    any(>(σmax), sig) && throw("too big σ")
     ## sig = σmin .+ exp.(sig) # ensure σ > 0
-    sig = @. σmin + (σmax - σmin) * (tanh(sig/2) + 1) / 2
+    ## sig = @. σmin + (σmax - σmin) * (tanh(sig/2) + 1) / 2 # "constraints"
     p = map_r_s(θ[2nmix .+ (1:(nmix-1))])
     tmp = [(μ,σ) for (μ,σ) in zip(mu, sig)]
     mix = MixtureModel(Normal, tmp, p)
-@show mix
     return mix
 end;
+
 
 # Define score-matching cost function
 function cost_sm2(x::AbstractVector{<:Real}, θ)
     model_score = score(model(θ))
-    return sum(abs2, model_score.(x) - data_score.(x)) / T
+    return (0.5/T) * sum(abs2, model_score.(x) - data_score.(x))
 end;
 
 # Minimize this score-matching cost function:
-cost_sm1 = (θ) -> cost_sm2(data, θ);
+β = 0e-4 # small regularizer to ensure coercive
+cost_sm1 = (θ) -> cost_sm2(data, θ) + β * 0.5 * norm(θ)^2;
 
 # Initial crude guess of mixture model parameters
-θ0 = [5, 7, 9, 1.5, 1.5, 1.5, 0, 0]; # gamma todo
-θ0 = [8, 13, 18, 2.0, 2.0, 2.0, 0, 0];
-θ0 = [10, 15, 2, 2, 0];
-θ0 = [10, 15, -2, -2, 0];
+θ0 = Float64[5, 7, 9, 1.5, 1.5, 1.5, 0, 0]; # Gamma
+#src θ0 = Float64[mean(data) .+ [-2, 0, 2]; -2; -2; -2; 0; 0];
+#src θ0 = Float64[10, 15, 2, 2, 0];
+#src θ0 = Float64[10, 15, -2, -2, 0];
 
 # Plot data pdf and initial model pdf
-pf = plot(pdf(data_dis); xlims = (-1, 25), label="Gamma pdf",
+plot!(pf, pdf(data_dis); xlims, xticks, label="$data_disn pdf",
     color = :black,
     xlabel = L"x",
     ylabel = L"p(x) \ \mathrm{ and } \ p(x;θ)",
@@ -195,21 +198,21 @@ plot!(pf, pdf(model(θ0)), label = "Initial Gaussian mixture", color=:blue)
 #
 prompt()
 
-# check descent
+# Check descent and non-convexity
 if false
-tmp = gradient(cost_sm1)(θ0)
-a = range(0, 9, 101)
-h = a -> cost_sm1(θ0 - a * tmp)
-plot(a, h.(a))
-xx
+    tmp = gradient(cost_sm1)(θ0)
+    a = range(0, 9, 101)
+    h = a -> cost_sm1(θ0 - a * tmp)
+    plot(a, log.(h.(a)))
 end
+
 
 # ## Impractical score matching
 
-##lower = [fill(0, nmix); fill(1.0, nmix); fill(-Inf, nmix-1)]
-##upper = [fill(Inf, nmix); fill(10, nmix); fill(Inf, nmix-1)]
-##opt_sm = optimize(cost_sm1, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
-opt_sm = optimize(cost_sm1, θ0, BFGS(); autodiff = :forward)
+lower = [fill(0, nmix); fill(1.0, nmix); fill(-Inf, nmix-1)]
+upper = [fill(Inf, nmix); fill(Inf, nmix); fill(Inf, nmix-1)]
+opt_sm = optimize(cost_sm1, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
+##opt_sm = optimize(cost_sm1, θ0, BFGS(); autodiff = :forward) # unconstrained
 θsm = minimizer(opt_sm)
 
 plot!(pf, pdf(model(θsm)), label = "SM Gaussian mixture", color=:red)
@@ -246,7 +249,8 @@ ML estimation leads to a lower negative log-likelihood.
 =#
 
 negloglike(θ) = (-1/T) * sum(logpdf(model(θ)), data)
-opt_ml = optimize(negloglike, lower, upper, θsm, Fminbox(BFGS()); autodiff = :forward)
+opt_ml = optimize(negloglike, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
+##opt_ml = optimize(negloglike, θ0, BFGS(); autodiff = :forward)
 θml = minimizer(opt_ml)
 negloglike.([θml, θsm, θ0])
 
@@ -312,8 +316,10 @@ function cost_sp2(x::AbstractVector{<:Real}, θ)
         0.5 * sum(abs2 ∘ model_score, x))
 end;
 
-cost_sp1 = (θ) -> cost_sp2(data, θ) # minimize this score-matching cost function
+# Minimize this score-matching cost function:
+cost_sp1 = (θ) -> cost_sp2(data, θ)
 opt_sp = optimize(cost_sp1, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
+##opt_sp = optimize(cost_sp1, θ0, BFGS(); autodiff = :forward)
 θsp = minimizer(opt_sp)
 cost_sp1.([θsp, θsm, θml])
 
@@ -322,13 +328,25 @@ plot!(pf, pdf(model(θsp)), label = "SP Gaussian mixture", color=:cyan)
 plot!(ps, score(model(θsp)), label = "SP score function", color=:cyan)
 pfs = plot(pf, ps)
 
+#
+prompt()
+
+
 #=
-Curiously the supposedly equivalent SM cost function works much worse.
+Curiously the supposedly equivalent practical SM cost function works much worse.
 Like the ML estimate,
 the first two ``σ`` values are stuck at the `lower` limit.
 Could it be local extrema?
 More investigation is needed!
+
+The two SM functions should differ by a constant independent of ``θ``.
 =#
+
+tmp = [θ0, θsp, θsm, θml]
+cost_sm1.(tmp) - cost_sp1.(tmp)
+
+# todo - bug since non-constant?
+
 
 
 # ### Reproducibility
