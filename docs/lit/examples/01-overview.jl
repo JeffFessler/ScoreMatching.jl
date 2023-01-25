@@ -353,22 +353,25 @@ the first two ``σ`` values are stuck at the `lower` limit.
 Could it be local extrema?
 More investigation is needed!
 
-Ideally,
+Ideally
+(as ``T → ∞``),
 the ESM and ISM cost functions
 should differ by a constant independent of ``θ``.
+Here they differ for small, finite ``T``.
 =#
 
 tmp = [θ0, θesm, θml, θism]
 cost_esm1.(tmp) - cost_ism1.(tmp)
 
-# todo - bug since non-constant?
 
 #=
+## Regularized score matching
+
 [Kingma & LeCun, 2010](https://doi.org/10.5555/2997189.2997315)
 reported some instability of ISM
 and suggested a regularized version
-corresponding to the following cost function:
-xx
+corresponding to the following (practical) cost function:
+
 ```math
 J_{\mathrm{RSM}}(\mathbf{θ}) =
 J_{\mathrm{ISM}}(\mathbf{θ}) + λ R(\mathbf{θ})
@@ -394,9 +397,7 @@ end;
 λ = 2e0
 cost_rsm1 = (θ) -> cost_rsm2(data, θ, λ)
 
-#upper_rsm = [fill(Inf, nmix); fill(19, nmix); fill(Inf, nmix-1)]
-upper_rsm = upper
-opt_rsm = optimize(cost_rsm1, lower, upper_rsm, θ0, Fminbox(BFGS());
+opt_rsm = optimize(cost_rsm1, lower, upper, θ0, Fminbox(BFGS());
  autodiff = :forward)
 θrsm = minimizer(opt_rsm)
 cost_rsm1.([θrsm, θ0, θism, θesm, θml])
@@ -410,8 +411,45 @@ pfs = plot(pf, ps)
 prompt()
 
 #=
-Sadly the RSM approach did not help much here.
+Sadly the regularized score matching (RSM) approach did not help much here.
 Increasing ``λ`` led to `optimize` errors.
+
+
+## Denoising score matching (DSM)
+
+[Vincent, 2011](https://doi.org/10.1162/NECO_a_00142)
+proposed a practical approach
+called
+_denoising score matching_ (DSM)
+that matches
+the model score function
+to a Parzen density estimate
+of the form
+```math
+\hat{p}(x) = \frac{1}{T} ∑_{t=1}^T q(x - x_t; σ)
+```
+where ``q`` denotes a Gaussian distribution
+``\mathcal{N}(0, σ)``.
+
+Statistically,
+this is equivalent
+(in expectation)
+to adding noise
+to the measurements,
+and then applying
+the ESM approach.
+The DSM cost function is
+```math
+J_{\mathrm{DSM}}(\mathbf{θ}) =
+E_{q(x,\tilde(x))}\left[
+\frac{1}{2} s(\tilde{x}; θ) - \frac{x - \tilde{x}}{σ^2}
+\right].
+```
+
+A benefit of this approach
+is that it does not require
+differentiating the model score function w.r.t ``x``.
+todo DSM
 =#
 
 
