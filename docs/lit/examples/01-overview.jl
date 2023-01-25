@@ -95,11 +95,14 @@ and
 is the _score function_
 of the (typically unknown) data distribution.
 
+[Vincent, 2011](https://doi.org/10.1162/NECO_a_00142)
+calls this approach
+_explicit score matching_ (ESM).
 
 ## Illustration
 
 For didactic purposes,
-we illustrate this basic version of score matching
+we illustrate explicit score matching
 by fitting samples from a
 [Gamma distribution](https://en.wikipedia.org/wiki/Gamma_distribution)
 to a mixture of gaussians.
@@ -171,15 +174,15 @@ function model(θ ;
 end;
 
 
-# Define score-matching cost function
-function cost_sm2(x::AbstractVector{<:Real}, θ)
+# Define explicit score-matching cost function
+function cost_esm2(x::AbstractVector{<:Real}, θ)
     model_score = score(model(θ))
     return (0.5/T) * sum(abs2, model_score.(x) - data_score.(x))
 end;
 
-# Minimize this score-matching cost function:
-β = 0e-4 # small regularizer to ensure coercive
-cost_sm1 = (θ) -> cost_sm2(data, θ) + β * 0.5 * norm(θ)^2;
+# Minimize this explicit score-matching cost function:
+β = 0e-4 # optional small regularizer to ensure coercive
+cost_esm1 = (θ) -> cost_esm2(data, θ) + β * 0.5 * norm(θ)^2;
 
 # Initial crude guess of mixture model parameters
 θ0 = Float64[5, 7, 9, 1.5, 1.5, 1.5, 0, 0]; # Gamma
@@ -200,22 +203,23 @@ prompt()
 
 # Check descent and non-convexity
 if false
-    tmp = gradient(cost_sm1)(θ0)
+    tmp = gradient(cost_esm1)(θ0)
     a = range(0, 9, 101)
-    h = a -> cost_sm1(θ0 - a * tmp)
+    h = a -> cost_esm1(θ0 - a * tmp)
     plot(a, log.(h.(a)))
 end
 
 
-# ## Impractical score matching
+# ## Explicit score matching (impractical)
 
 lower = [fill(0, nmix); fill(1.0, nmix); fill(-Inf, nmix-1)]
 upper = [fill(Inf, nmix); fill(Inf, nmix); fill(Inf, nmix-1)]
-opt_sm = optimize(cost_sm1, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
-##opt_sm = optimize(cost_sm1, θ0, BFGS(); autodiff = :forward) # unconstrained
-θsm = minimizer(opt_sm)
+opt_esm = optimize(cost_esm1, lower, upper, θ0, Fminbox(BFGS());
+ autodiff = :forward)
+##opt_esm = optimize(cost_esm1, θ0, BFGS(); autodiff = :forward) # unconstrained
+θesm = minimizer(opt_esm)
 
-plot!(pf, pdf(model(θsm)), label = "SM Gaussian mixture", color=:red)
+plot!(pf, pdf(model(θesm)), label = "ESM Gaussian mixture", color=:red)
 
 #
 prompt()
@@ -229,7 +233,7 @@ where there are few (if any) data points.
 =#
 ps = plot(data_score; xlims=(1,20), label = "Data score function",
     xticks=[1,20], xlabel=L"x", color=:black)
-plot!(ps, score(model(θsm)); label = "SM score function", color=:red)
+plot!(ps, score(model(θesm)); label = "ESM score function", color=:red)
 
 
 #
@@ -252,7 +256,7 @@ negloglike(θ) = (-1/T) * sum(logpdf(model(θ)), data)
 opt_ml = optimize(negloglike, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
 ##opt_ml = optimize(negloglike, θ0, BFGS(); autodiff = :forward)
 θml = minimizer(opt_ml)
-negloglike.([θml, θsm, θ0])
+negloglike.([θml, θesm, θ0])
 
 #=
 Curiously,
@@ -273,9 +277,9 @@ prompt()
 
 
 #=
-## Practical score matching
+## Implicit score matching (more practical)
 
-The above SM fitting process
+The above ESM fitting process
 used `score(data_dis)`,
 the score-function of the data distribution,
 which is unknown in practical situations.
@@ -305,27 +309,31 @@ because it depends on the diagonal
 elements of the Hessian
 of the log prior.
 Subsequent pages deal with that issue.)
+
+[Vincent, 2011](https://doi.org/10.1162/NECO_a_00142)
+calls this approach
+_implicit score matching_ (ISM).
 =#
 
 
-# Practical score-matching cost function
-function cost_sp2(x::AbstractVector{<:Real}, θ)
+# Implicit score-matching cost function
+function cost_ism2(x::AbstractVector{<:Real}, θ)
     tmp = model(θ)
     model_score = score(tmp)
     return (1/T) * (sum(score_deriv(tmp), x) +
         0.5 * sum(abs2 ∘ model_score, x))
 end;
 
-# Minimize this score-matching cost function:
-cost_sp1 = (θ) -> cost_sp2(data, θ)
-opt_sp = optimize(cost_sp1, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
-##opt_sp = optimize(cost_sp1, θ0, BFGS(); autodiff = :forward)
-θsp = minimizer(opt_sp)
-cost_sp1.([θsp, θsm, θml])
+# Minimize this implicit score-matching cost function:
+cost_ism1 = (θ) -> cost_ism2(data, θ)
+opt_ism = optimize(cost_ism1, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
+##opt_ism = optimize(cost_ism1, θ0, BFGS(); autodiff = :forward)
+θism = minimizer(opt_ism)
+cost_ism1.([θism, θesm, θml])
 
 #
-plot!(pf, pdf(model(θsp)), label = "SP Gaussian mixture", color=:cyan)
-plot!(ps, score(model(θsp)), label = "SP score function", color=:cyan)
+plot!(pf, pdf(model(θism)), label = "ISM Gaussian mixture", color=:cyan)
+plot!(ps, score(model(θism)), label = "ISM score function", color=:cyan)
 pfs = plot(pf, ps)
 
 #
@@ -339,11 +347,13 @@ the first two ``σ`` values are stuck at the `lower` limit.
 Could it be local extrema?
 More investigation is needed!
 
-The two SM functions should differ by a constant independent of ``θ``.
+Ideally,
+the ESM and ISM cost functions
+should differ by a constant independent of ``θ``.
 =#
 
-tmp = [θ0, θsp, θsm, θml]
-cost_sm1.(tmp) - cost_sp1.(tmp)
+tmp = [θ0, θesm, θml, θism]
+cost_esm1.(tmp) - cost_ism1.(tmp)
 
 # todo - bug since non-constant?
 
