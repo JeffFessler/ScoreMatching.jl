@@ -25,16 +25,18 @@ This page was generated from a single Julia file:
 
 using ScoreMatching
 using MIRTjim: jim, prompt
-using Distributions: Distribution, Gamma, Normal, MixtureModel, logpdf, pdf
+using Distributions: Distribution, Normal, MixtureModel, logpdf, pdf
+using Distributions: Cauchy, Gamma, Logistic, TDist
 import Distributions: logpdf, pdf
 import ForwardDiff
-using LinearAlgebra: tr
+using LinearAlgebra: tr, norm
 using LaTeXStrings
 using Random: seed!; seed!(0)
+using StatsBase: mean
 using Optim: optimize, BFGS, Fminbox
 import Optim: minimizer
 #src import ReverseDiff
-using Plots: plot, plot!, scatter, default, gui
+using Plots: plot, plot!, scatter, histogram, default, gui
 using InteractiveUtils: versioninfo
 default(label="", markerstrokecolor=:auto)
 
@@ -42,7 +44,7 @@ default(label="", markerstrokecolor=:auto)
 # The following line is helpful when running this file as a script;
 # this way it will prompt user to hit a key after each figure is displayed.
 
-isinteractive() ? jim(:prompt, true) : prompt(:draw);
+isinteractive() ? jim(:prompt, true) : prompt(:prompt);
 
 
 #=
@@ -93,11 +95,14 @@ and
 is the _score function_
 of the (typically unknown) data distribution.
 
+[Vincent, 2011](https://doi.org/10.1162/NECO_a_00142)
+calls this approach
+_explicit score matching_ (ESM).
 
 ## Illustration
 
 For didactic purposes,
-we illustrate this basic version of score matching
+we illustrate explicit score matching
 by fitting samples from a
 [Gamma distribution](https://en.wikipedia.org/wiki/Gamma_distribution)
 to a mixture of gaussians.
@@ -109,16 +114,24 @@ logpdf(d::Distribution) = x -> logpdf(d, x)
 pdf(d::Distribution) = x -> pdf(d, x)
 derivative(f::Function) = x -> ForwardDiff.derivative(f, x)
 gradient(f::Function) = x -> ForwardDiff.gradient(f, x)
-#src hessian(f::Function) = x -> ForwardDiff.hessian(f, x)
+## hessian(f::Function) = x -> ForwardDiff.hessian(f, x)
 score(d::Distribution) = derivative(logpdf(d))
 score_deriv(d::Distribution) = derivative(score(d)) # scalar x only
 
+
 # Generate training data
 T = 100
-data_dis = Gamma(8, 1.0)
+data_disn = :(Gamma(8, 1))
+data_dis = eval(data_disn)
 data_score = derivative(logpdf(data_dis))
 data = rand(data_dis, T)
-pd = scatter(data, zeros(T))
+xlims = (-1, 25)
+xticks = [0, 8, 24]
+pf = scatter(data, zeros(T); xlims, xticks, color=:black)
+ph = histogram(data;
+ bins=-1:0.5:25, xlims, xticks, label="data histogram")
+plot!(ph, x -> T*0.5 * pdf(data_dis)(x);
+ color=:black, label="$data_disn Distribution")
 
 
 #=
@@ -128,10 +141,14 @@ the following mapping from ``\mathbb{R}^{D-1}``
 to the ``D``-dimensional simplex is helpful.
 It is the inverse of the
 [additive logratio transform](https://en.wikipedia.org/wiki/Compositional_data#Additive_logratio_transform).
+(It is related to the
+[softmax function](https://en.wikipedia.org/wiki/Softmax_function).
 =#
 
-function map_r_s(y::AbstractVector)
-    p = exp.([y; 0])
+function map_r_s(y::AbstractVector; scale::Real = 1.0)
+    y = scale * [y; 0]
+    y .-= maximum(y) # for numerical stability
+    p = exp.(y)
     return p / sum(p)
 end
 map_r_s(y::Real...) = map_r_s([y...])
@@ -139,37 +156,47 @@ map_r_s(y::Real...) = map_r_s([y...])
 y1 = range(-1,1,101) * 9
 y2 = range(-1,1,101) * 9
 tmp = map_r_s.(y1, y2')
-jim(y1, y2, tmp; title="Simplex parameterization", nrow=1)
+pj = jim(y1, y2, tmp; title="Simplex parameterization", nrow=1)
 
 
 # Define model distribution
 
 nmix = 3 # how many gaussians in the mixture model
-function model(θ ; σmin::Real=1e-2)
+function model(θ ;
+    σmin::Real = 1,
+    σmax::Real = 19,
+)
     mu = θ[1:nmix]
     sig = θ[nmix .+ (1:nmix)]
-    any(<(σmin), sig) && throw("bad σ")
+    any(<(σmin), sig) && throw("too small σ")
+    any(>(σmax), sig) && throw("too big σ $sig")
     ## sig = σmin .+ exp.(sig) # ensure σ > 0
+    ## sig = @. σmin + (σmax - σmin) * (tanh(sig/2) + 1) / 2 # "constraints"
     p = map_r_s(θ[2nmix .+ (1:(nmix-1))])
     tmp = [(μ,σ) for (μ,σ) in zip(mu, sig)]
-    return MixtureModel(Normal, tmp, p)
+    mix = MixtureModel(Normal, tmp, p)
+    return mix
 end;
 
-# Define score-matching cost function
-function cost_sm2(x::AbstractVector{<:Real}, θ)
+
+# Define explicit score-matching cost function
+function cost_esm2(x::AbstractVector{<:Real}, θ)
     model_score = score(model(θ))
-    return sum(abs2, model_score.(x) - data_score.(x)) / T
+    return (0.5/T) * sum(abs2, model_score.(x) - data_score.(x))
 end;
 
-# Minimize this score-matching cost function:
-cost_sm1 = (θ) -> cost_sm2(data, θ);
+# Minimize this explicit score-matching cost function:
+β = 0e-4 # optional small regularizer to ensure coercive
+cost_esm1 = (θ) -> cost_esm2(data, θ) + β * 0.5 * norm(θ)^2;
 
 # Initial crude guess of mixture model parameters
-θ0 = [5, 7, 9, 1.5, 1.5, 1.5, 0, 0];
-#src θ0 = [6, 9, 2, 2, 0];
+θ0 = Float64[5, 7, 9, 1.5, 1.5, 1.5, 0, 0]; # Gamma
+#src θ0 = Float64[mean(data) .+ [-2, 0, 2]; -2; -2; -2; 0; 0];
+#src θ0 = Float64[10, 15, 2, 2, 0];
+#src θ0 = Float64[10, 15, -2, -2, 0];
 
 # Plot data pdf and initial model pdf
-pf = plot(pdf(data_dis); xlims = (-1, 25), label="Gamma pdf",
+plot!(pf, pdf(data_dis); xlims, xticks, label="$data_disn pdf",
     color = :black,
     xlabel = L"x",
     ylabel = L"p(x) \ \mathrm{ and } \ p(x;θ)",
@@ -179,15 +206,25 @@ plot!(pf, pdf(model(θ0)), label = "Initial Gaussian mixture", color=:blue)
 #
 prompt()
 
+# Check descent and non-convexity
+if false
+    tmp = gradient(cost_esm1)(θ0)
+    a = range(0, 9, 101)
+    h = a -> cost_esm1(θ0 - a * tmp)
+    plot(a, log.(h.(a)))
+end
 
-# ## Impractical score matching
+
+# ## Explicit score matching (impractical)
 
 lower = [fill(0, nmix); fill(1.0, nmix); fill(-Inf, nmix-1)]
 upper = [fill(Inf, nmix); fill(Inf, nmix); fill(Inf, nmix-1)]
-opt_sm = optimize(cost_sm1, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
-θsm = minimizer(opt_sm)
+opt_esm = optimize(cost_esm1, lower, upper, θ0, Fminbox(BFGS());
+ autodiff = :forward)
+##opt_esm = optimize(cost_esm1, θ0, BFGS(); autodiff = :forward) # unconstrained
+θesm = minimizer(opt_esm)
 
-plot!(pf, pdf(model(θsm)), label = "SM Gaussian mixture", color=:red)
+plot!(pf, pdf(model(θesm)), label = "ESM Gaussian mixture", color=:green)
 
 #
 prompt()
@@ -201,7 +238,7 @@ where there are few (if any) data points.
 =#
 ps = plot(data_score; xlims=(1,20), label = "Data score function",
     xticks=[1,20], xlabel=L"x", color=:black)
-plot!(ps, score(model(θsm)); label = "SM score function", color=:red)
+plot!(ps, score(model(θesm)); label = "ESM score function", color=:green)
 
 
 #
@@ -220,10 +257,12 @@ As expected,
 ML estimation leads to a lower negative log-likelihood.
 =#
 
+
 negloglike(θ) = (-1/T) * sum(logpdf(model(θ)), data)
-opt_ml = optimize(negloglike, lower, upper, θsm, Fminbox(BFGS()); autodiff = :forward)
+opt_ml = optimize(negloglike, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
+##opt_ml = optimize(negloglike, θ0, BFGS(); autodiff = :forward)
 θml = minimizer(opt_ml)
-negloglike.([θml, θsm, θ0])
+negloglike.([θml, θesm, θ0])
 
 #=
 Curiously,
@@ -244,9 +283,9 @@ prompt()
 
 
 #=
-## Practical score matching
+## Implicit score matching (more practical)
 
-The above SM fitting process
+The above ESM fitting process
 used `score(data_dis)`,
 the score-function of the data distribution,
 which is unknown in practical situations.
@@ -255,7 +294,7 @@ which is unknown in practical situations.
 derived the following more practical cost function
 that is independent of the unknown data score function:
 ```math
-J(\mathbf{θ}) =
+J_{\mathrm{ISM}}(\mathbf{θ}) =
 \frac{1}{T} ∑_{t=1}^T
 ∑_{i=1}^N ∂_i s_i(\mathbf{x}_t; \mathbf{θ})
  + \frac{1}{2} | s_i(\mathbf{x}_t; \mathbf{θ}) |^2,
@@ -276,33 +315,141 @@ because it depends on the diagonal
 elements of the Hessian
 of the log prior.
 Subsequent pages deal with that issue.)
+
+[Vincent, 2011](https://doi.org/10.1162/NECO_a_00142)
+calls this approach
+_implicit score matching_ (ISM).
 =#
 
 
-# Practical score-matching cost function
-function cost_sp2(x::AbstractVector{<:Real}, θ)
+# Implicit score-matching cost function
+function cost_ism2(x::AbstractVector{<:Real}, θ)
     tmp = model(θ)
     model_score = score(tmp)
     return (1/T) * (sum(score_deriv(tmp), x) +
         0.5 * sum(abs2 ∘ model_score, x))
 end;
 
-cost_sp1 = (θ) -> cost_sp2(data, θ) # minimize this score-matching cost function
-opt_sp = optimize(cost_sp1, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
-θsp = minimizer(opt_sp)
-cost_sp1.([θsp, θsm, θml])
+# Minimize this implicit score-matching cost function:
+cost_ism1 = (θ) -> cost_ism2(data, θ)
+opt_ism = optimize(cost_ism1, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
+##opt_ism = optimize(cost_ism1, θ0, BFGS(); autodiff = :forward)
+θism = minimizer(opt_ism)
+cost_ism1.([θism, θesm, θml])
 
 #
-plot!(pf, pdf(model(θsp)), label = "SP Gaussian mixture", color=:cyan)
-plot!(ps, score(model(θsp)), label = "SP score function", color=:cyan)
+plot!(pf, pdf(model(θism)), label = "ISM Gaussian mixture", color=:cyan)
+plot!(ps, score(model(θism)), label = "ISM score function", color=:cyan)
 pfs = plot(pf, ps)
 
+#
+prompt()
+
+
 #=
-Curiously the supposedly equivalent SM cost function works much worse.
+Curiously the supposedly equivalent ISM cost function works much worse.
 Like the ML estimate,
 the first two ``σ`` values are stuck at the `lower` limit.
 Could it be local extrema?
 More investigation is needed!
+
+Ideally
+(as ``T → ∞``),
+the ESM and ISM cost functions
+should differ by a constant independent of ``θ``.
+Here they differ for small, finite ``T``.
+=#
+
+tmp = [θ0, θesm, θml, θism]
+cost_esm1.(tmp) - cost_ism1.(tmp)
+
+
+#=
+## Regularized score matching
+
+[Kingma & LeCun, 2010](https://doi.org/10.5555/2997189.2997315)
+reported some instability of ISM
+and suggested a regularized version
+corresponding to the following (practical) cost function:
+
+```math
+J_{\mathrm{RSM}}(\mathbf{θ}) =
+J_{\mathrm{ISM}}(\mathbf{θ}) + λ R(\mathbf{θ})
+,\quad
+R(\mathbf{θ}) =
+\frac{1}{T} ∑_{t=1}^T
+∑_{i=1}^N | ∂_i s_i(\mathbf{x}_t; \mathbf{θ}) |^2.
+```
+=#
+
+
+# Regularized ISM cost function
+function cost_rsm2(x::AbstractVector{<:Real}, θ, λ)
+    mod = model(θ)
+    model_score = score(mod)
+    tmp = score_deriv(mod).(x)
+    R = sum(abs2, tmp)
+    J_ism = sum(tmp) + 0.5 * sum(abs2 ∘ model_score, x)
+    return (1/T) * (J_ism + λ * R)
+end;
+
+# Minimize this regularized ISM cost function:
+λ = 2e0
+cost_rsm1 = (θ) -> cost_rsm2(data, θ, λ)
+
+opt_rsm = optimize(cost_rsm1, lower, upper, θ0, Fminbox(BFGS());
+ autodiff = :forward)
+θrsm = minimizer(opt_rsm)
+cost_rsm1.([θrsm, θ0, θism, θesm, θml])
+
+#
+plot!(pf, pdf(model(θism)), label = "RSM Gaussian mixture", color=:red)
+plot!(ps, score(model(θism)), label = "RSM score function", color=:red)
+pfs = plot(pf, ps)
+
+#
+prompt()
+
+#=
+Sadly the regularized score matching (RSM) approach did not help much here.
+Increasing ``λ`` led to `optimize` errors.
+
+
+## Denoising score matching (DSM)
+
+[Vincent, 2011](https://doi.org/10.1162/NECO_a_00142)
+proposed a practical approach
+called
+_denoising score matching_ (DSM)
+that matches
+the model score function
+to a Parzen density estimate
+of the form
+```math
+\hat{p}(x) = \frac{1}{T} ∑_{t=1}^T q(x - x_t; σ)
+```
+where ``q`` denotes a Gaussian distribution
+``\mathcal{N}(0, σ)``.
+
+Statistically,
+this is equivalent
+(in expectation)
+to adding noise
+to the measurements,
+and then applying
+the ESM approach.
+The DSM cost function is
+```math
+J_{\mathrm{DSM}}(\mathbf{θ}) =
+E_{q(x,\tilde(x))}\left[
+\frac{1}{2} s(\tilde{x}; θ) - \frac{x - \tilde{x}}{σ^2}
+\right].
+```
+
+A benefit of this approach
+is that it does not require
+differentiating the model score function w.r.t ``x``.
+todo DSM
 =#
 
 
