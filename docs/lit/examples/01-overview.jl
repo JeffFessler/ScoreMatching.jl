@@ -36,7 +36,7 @@ using StatsBase: mean
 using Optim: optimize, BFGS, Fminbox
 import Optim: minimizer
 #src import ReverseDiff
-using Plots: plot, plot!, scatter, default, gui
+using Plots: plot, plot!, scatter, histogram, default, gui
 using InteractiveUtils: versioninfo
 default(label="", markerstrokecolor=:auto)
 
@@ -44,7 +44,7 @@ default(label="", markerstrokecolor=:auto)
 # The following line is helpful when running this file as a script;
 # this way it will prompt user to hit a key after each figure is displayed.
 
-isinteractive() ? jim(:prompt, true) : prompt(:pause);
+isinteractive() ? jim(:prompt, true) : prompt(:prompt);
 
 
 #=
@@ -128,6 +128,10 @@ data = rand(data_dis, T)
 xlims = (-1, 25)
 xticks = [0, 8, 24]
 pf = scatter(data, zeros(T); xlims, xticks, color=:black)
+ph = histogram(data;
+ bins=-1:0.5:25, xlims, xticks, label="data histogram")
+plot!(ph, x -> T*0.5 * pdf(data_dis)(x);
+ color=:black, label="$data_disn Distribution")
 
 
 #=
