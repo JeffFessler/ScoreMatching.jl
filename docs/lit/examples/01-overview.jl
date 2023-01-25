@@ -118,6 +118,7 @@ gradient(f::Function) = x -> ForwardDiff.gradient(f, x)
 score(d::Distribution) = derivative(logpdf(d))
 score_deriv(d::Distribution) = derivative(score(d)) # scalar x only
 
+
 # Generate training data
 T = 100
 data_disn = :(Gamma(8, 1))
@@ -151,7 +152,7 @@ map_r_s(y::Real...) = map_r_s([y...])
 y1 = range(-1,1,101) * 9
 y2 = range(-1,1,101) * 9
 tmp = map_r_s.(y1, y2')
-jim(y1, y2, tmp; title="Simplex parameterization", nrow=1)
+pj = jim(y1, y2, tmp; title="Simplex parameterization", nrow=1)
 
 
 # Define model distribution
@@ -159,12 +160,12 @@ jim(y1, y2, tmp; title="Simplex parameterization", nrow=1)
 nmix = 3 # how many gaussians in the mixture model
 function model(θ ;
     σmin::Real = 1,
-    σmax::Real = 9,
+    σmax::Real = 19,
 )
     mu = θ[1:nmix]
     sig = θ[nmix .+ (1:nmix)]
     any(<(σmin), sig) && throw("too small σ")
-    any(>(σmax), sig) && throw("too big σ")
+    any(>(σmax), sig) && throw("too big σ $sig")
     ## sig = σmin .+ exp.(sig) # ensure σ > 0
     ## sig = @. σmin + (σmax - σmin) * (tanh(sig/2) + 1) / 2 # "constraints"
     p = map_r_s(θ[2nmix .+ (1:(nmix-1))])
@@ -219,7 +220,7 @@ opt_esm = optimize(cost_esm1, lower, upper, θ0, Fminbox(BFGS());
 ##opt_esm = optimize(cost_esm1, θ0, BFGS(); autodiff = :forward) # unconstrained
 θesm = minimizer(opt_esm)
 
-plot!(pf, pdf(model(θesm)), label = "ESM Gaussian mixture", color=:red)
+plot!(pf, pdf(model(θesm)), label = "ESM Gaussian mixture", color=:green)
 
 #
 prompt()
@@ -233,7 +234,7 @@ where there are few (if any) data points.
 =#
 ps = plot(data_score; xlims=(1,20), label = "Data score function",
     xticks=[1,20], xlabel=L"x", color=:black)
-plot!(ps, score(model(θesm)); label = "ESM score function", color=:red)
+plot!(ps, score(model(θesm)); label = "ESM score function", color=:green)
 
 
 #
@@ -251,6 +252,7 @@ than score matching in this case.
 As expected,
 ML estimation leads to a lower negative log-likelihood.
 =#
+
 
 negloglike(θ) = (-1/T) * sum(logpdf(model(θ)), data)
 opt_ml = optimize(negloglike, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
@@ -288,7 +290,7 @@ which is unknown in practical situations.
 derived the following more practical cost function
 that is independent of the unknown data score function:
 ```math
-J(\mathbf{θ}) =
+J_{\mathrm{ISM}}(\mathbf{θ}) =
 \frac{1}{T} ∑_{t=1}^T
 ∑_{i=1}^N ∂_i s_i(\mathbf{x}_t; \mathbf{θ})
  + \frac{1}{2} | s_i(\mathbf{x}_t; \mathbf{θ}) |^2,
@@ -341,7 +343,7 @@ prompt()
 
 
 #=
-Curiously the supposedly equivalent practical SM cost function works much worse.
+Curiously the supposedly equivalent ISM cost function works much worse.
 Like the ML estimate,
 the first two ``σ`` values are stuck at the `lower` limit.
 Could it be local extrema?
@@ -357,6 +359,56 @@ cost_esm1.(tmp) - cost_ism1.(tmp)
 
 # todo - bug since non-constant?
 
+#=
+[Kingma & LeCun, 2010](https://doi.org/10.5555/2997189.2997315)
+reported some instability of ISM
+and suggested a regularized version
+corresponding to the following cost function:
+xx
+```math
+J_{\mathrm{RSM}}(\mathbf{θ}) =
+J_{\mathrm{ISM}}(\mathbf{θ}) + λ R(\mathbf{θ})
+,\quad
+R(\mathbf{θ}) =
+\frac{1}{T} ∑_{t=1}^T
+∑_{i=1}^N | ∂_i s_i(\mathbf{x}_t; \mathbf{θ}) |^2.
+```
+=#
+
+
+# Regularized ISM cost function
+function cost_rsm2(x::AbstractVector{<:Real}, θ, λ)
+    mod = model(θ)
+    model_score = score(mod)
+    tmp = score_deriv(mod).(x)
+    R = sum(abs2, tmp)
+    J_ism = sum(tmp) + 0.5 * sum(abs2 ∘ model_score, x)
+    return (1/T) * (J_ism + λ * R)
+end;
+
+# Minimize this regularized ISM cost function:
+λ = 2e0
+cost_rsm1 = (θ) -> cost_rsm2(data, θ, λ)
+
+#upper_rsm = [fill(Inf, nmix); fill(19, nmix); fill(Inf, nmix-1)]
+upper_rsm = upper
+opt_rsm = optimize(cost_rsm1, lower, upper_rsm, θ0, Fminbox(BFGS());
+ autodiff = :forward)
+θrsm = minimizer(opt_rsm)
+cost_rsm1.([θrsm, θ0, θism, θesm, θml])
+
+#
+plot!(pf, pdf(model(θism)), label = "RSM Gaussian mixture", color=:red)
+plot!(ps, score(model(θism)), label = "RSM score function", color=:red)
+pfs = plot(pf, ps)
+
+#
+prompt()
+
+#=
+Sadly the RSM approach did not help much here.
+Increasing ``λ`` led to `optimize` errors.
+=#
 
 
 # ### Reproducibility
