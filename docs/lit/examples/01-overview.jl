@@ -53,11 +53,11 @@ isinteractive() ? jim(:prompt, true) : prompt(:prompt);
 Given ``T``
 [IID](https://en.wikipedia.org/wiki/Independent_and_identically_distributed_random_variables)
 training data samples
-``\mathbf{x}_1, …, \mathbf{x}_T ∈ \mathbb{R}^N``,
+``\bm{x}_1, …, \bm{x}_T ∈ \mathbb{R}^N``,
 we often want to find the parameters
-``\mathbf{θ}``
+``\bm{θ}``
 of a model distribution
-``p(\mathbf{x}; \mathbf{θ})``
+``p(\bm{x}; \bm{θ})``
 that "best fit" the data.
 
 Maximum-likelihood estimation
@@ -73,24 +73,24 @@ needing to find the normalizing constant.
 The idea behind the score matching approach
 to model fitting is
 ```math
-\hat{\mathbf{θ}} = \arg \min_{\mathbf{θ}}
-J(\mathbf{θ})
+\hat{\bm{θ}} = \arg \min_{\bm{θ}}
+J(\bm{θ})
 ,\qquad
-J(\mathbf{θ}) =
+J(\bm{θ}) =
 \frac{1}{T} ∑_{t=1}^T
-\| \mathbf{s}(\mathbf{x}_t; \mathbf{θ}) - \mathbf{s}(\mathbf{x}_t) \|^2
+\| \bm{s}(\bm{x}_t; \bm{θ}) - \bm{s}(\bm{x}_t) \|^2
 ```
 where
 ``
-\mathbf{s}(\mathbf{x}; \mathbf{θ}) =
-\nabla_{\mathbf{x}} \log p(\mathbf{x}; \mathbf{θ})
+\bm{s}(\bm{x}; \bm{θ}) =
+\nabla_{\bm{x}} \log p(\bm{x}; \bm{θ})
 ``
 is the _score function_
 of the model distribution,
 and
 ``
-\mathbf{s}(\mathbf{x}) =
-\nabla_{\mathbf{x}} \log p(\mathbf{x})
+\bm{s}(\bm{x}) =
+\nabla_{\bm{x}} \log p(\bm{x})
 ``
 is the _score function_
 of the (typically unknown) data distribution.
@@ -294,19 +294,19 @@ which is unknown in practical situations.
 derived the following more practical cost function
 that is independent of the unknown data score function:
 ```math
-J_{\mathrm{ISM}}(\mathbf{θ}) =
+J_{\mathrm{ISM}}(\bm{θ}) =
 \frac{1}{T} ∑_{t=1}^T
-∑_{i=1}^N ∂_i s_i(\mathbf{x}_t; \mathbf{θ})
- + \frac{1}{2} | s_i(\mathbf{x}_t; \mathbf{θ}) |^2,
+∑_{i=1}^N ∂_i s_i(\bm{x}_t; \bm{θ})
+ + \frac{1}{2} | s_i(\bm{x}_t; \bm{θ}) |^2,
 ```
 ignoring a constant that is independent of ``θ,``
 where
 ```math
-∂_i s_i(\mathbf{x}; \mathbf{θ})
+∂_i s_i(\bm{x}; \bm{θ})
 =
-\frac{∂}{∂ x_i} s_i(\mathbf{x}; \mathbf{θ})
+\frac{∂}{∂ x_i} s_i(\bm{x}; \bm{θ})
 =
-\frac{∂^2}{∂ x_i^2} \log p(\mathbf{x}; \mathbf{θ}).
+\frac{∂^2}{∂ x_i^2} \log p(\bm{x}; \bm{θ}).
 ```
 
 (For large models
@@ -373,12 +373,12 @@ and suggested a regularized version
 corresponding to the following (practical) cost function:
 
 ```math
-J_{\mathrm{RSM}}(\mathbf{θ}) =
-J_{\mathrm{ISM}}(\mathbf{θ}) + λ R(\mathbf{θ})
+J_{\mathrm{RSM}}(\bm{θ}) =
+J_{\mathrm{ISM}}(\bm{θ}) + λ R(\bm{θ})
 ,\quad
-R(\mathbf{θ}) =
+R(\bm{θ}) =
 \frac{1}{T} ∑_{t=1}^T
-∑_{i=1}^N | ∂_i s_i(\mathbf{x}_t; \mathbf{θ}) |^2.
+∑_{i=1}^N | ∂_i s_i(\bm{x}_t; \bm{θ}) |^2.
 ```
 =#
 
@@ -423,16 +423,17 @@ called
 _denoising score matching_ (DSM)
 that matches
 the model score function
-to a Parzen density estimate
+to the score function
+of a Parzen density estimate
 of the form
 ```math
-\hat{p}(x) = \frac{1}{T} ∑_{t=1}^T q(x - x_t; σ)
+q_{σ}(\bm{x}) = \frac{1}{T} ∑_{t=1}^T g_{σ}(\bm{x} - \bm{x}_t)
 ```
-where ``q`` denotes a Gaussian distribution
-``\mathcal{N}(0, σ)``.
+where ``g_{σ}`` denotes a Gaussian distribution
+``\mathcal{N}(\bm{0}, σ \bm{I})``.
 
 Statistically,
-this is equivalent
+this approach is equivalent
 (in expectation)
 to adding noise
 to the measurements,
@@ -440,16 +441,80 @@ and then applying
 the ESM approach.
 The DSM cost function is
 ```math
-J_{\mathrm{DSM}}(\mathbf{θ}) =
-E_{q(x,\tilde(x))}\left[
-\frac{1}{2} s(\tilde{x}; θ) - \frac{x - \tilde{x}}{σ^2}
+J_{\mathrm{DSM}}(\bm{θ}) =
+\frac{1}{T} ∑_{t=1}^T
+E_{\bm{z} ∼ g_{σ}}\left[
+\frac{1}{2}
+\left\|
+\bm{s}(\bm{x} + \bm{z}; \bm{θ}) + \frac{\bm{z}}{σ^2}
+\right\|_2^2
 \right].
 ```
 
 A benefit of this approach
 is that it does not require
-differentiating the model score function w.r.t ``x``.
-todo DSM
+differentiating the model score function w.r.t ``\bm{x}``.
+
+The inner expectation over ``g_{σ}``
+is typically analytically intractable,
+so in practice
+we replace it with a sample mean
+where we draw $M$ values of ``z``
+per training sample,
+leading to the following practical cost function
+```math
+J_{\mathrm{DSM}, \, M}(\bm{θ}) =
+\frac{1}{T} ∑_{t=1}^T
+\frac{1}{M} ∑_{m=1}^M
+\frac{1}{2}
+\left\|
+s(\bm{x} + \bm{z}_{t,m}; \bm{θ}) + \frac{\bm{z}_{t,m}}{σ^2}
+\right\|_2^2,
+```
+where the noise samples
+``\bm{z}_{t,m}``
+are IID.
+
+
+The next code blocks investigate this DSM approach
+for somewhat arbitrary choices of ``M`` and ``σ``.
+=#
+
+M = 9
+σdsm = 1.5
+z = σdsm * randn(T, M)
+
+
+# Define denoising score-matching cost function,
+# where input `data` is `T` and `z` is ``T × M``
+function cost_dsm2(data::AbstractVector{<:Real}, z::AbstractArray{<:Real}, θ)
+    model_score = score(model(θ))
+    tmp = model_score.(data .+ z) # (T,M) # add noise to data
+    return (0.5/T/M) * sum(abs2, tmp + z ./ σdsm^2) # todo think units
+end;
+
+cost_dsm1 = (θ) -> cost_dsm2(data, z, θ) # + β * 0.5 * norm(θ)^2;
+
+opt_dsm = optimize(cost_dsm1, lower, upper, θ0, Fminbox(BFGS());
+ autodiff = :forward)
+θdsm = minimizer(opt_dsm)
+
+plot!(pf, pdf(model(θdsm)), label = "DSM Gaussian mixture", color=:orange)
+plot!(ps, score(model(θdsm)); label = "DSM score function", color=:orange)
+pfs = plot(pf, ps)
+
+#
+prompt()
+
+
+#=
+## Noise-conditional models
+
+Above we used a single noise value for DSM.
+Contemporary methods use a range of noise values
+with noise-conditional models,
+e.g.,
+[Song et al. ICLR 2021](https://openreview.net/forum?id=PxTIG12RRHS).
 =#
 
 
