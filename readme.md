@@ -17,6 +17,7 @@ https://github.com/JeffFessler/ScoreMatching.jl
 
 ## Related packages
 
+* https://github.com/FluxML/model-zoo/tree/master/vision/diffusion_mnist
 * https://github.com/ermongroup/sliced_score_matching
 * https://github.com/yang-song/score_sde
 * https://github.com/ermongroup/ncsn
