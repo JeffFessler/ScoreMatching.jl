@@ -87,11 +87,11 @@ what a score function looks like.
 
 Consider the (improper) model
 ``
-p(\bm{x}; \bm{θ}) = \frac{1}{Z(\bm{θ}) \mathrm{e}^{-β |x_2 - x_1|^p}
+p(\bm{x}; \bm{θ}) = \frac{1}{Z(\bm{θ})} \mathrm{e}^{-β |x_2 - x_1|^α}
 ``
 where here there are two parameters
-``\bm{θ} = (β, p)'',
-for ``β > 0`` and ``p > 1`.
+``\bm{θ} = (β, α)``,
+for ``β > 0`` and ``α > 1``.
 The _score function_
 for this model is
 ``
@@ -99,20 +99,24 @@ for this model is
 =
 \nabla_{\bm{x}} \log p(\bm{x}; \bm{θ})
 =
-\nabla_{\bm{x}} -β |x_2 - x_1|^p
-= p β \begin{bmatrix} 1 \\ -1 \end{bmatrix}
-(x_2 - x_1)^{p-1} * sign(x_2 - x_1).
+- β \nabla_{\bm{x}} |x_2 - x_1|^α
+= α β \begin{bmatrix} 1 \\ -1 \end{bmatrix}
+|x_2 - x_1|^{α-1} \mathrm{sign}(x_2 - x_1).
 ``
 
 This example is related to
-generalized Gaussian image priors
+generalized Gaussian image priors,
 and,
-for ``p=1``,
+for ``α=1``,
 is related to total variation (TV) regularization.
 
 Here is a visualization
-of the log pdf
+of this 'TV' pdf
 and the score functions.
+
+The quiver plot
+shows that the score function
+describe directions that ascend the prior.
 =#
 
 function do_quiver!(p::Plot, x, y, dx, dy; thresh=0.02, scale=0.15)
@@ -139,20 +143,19 @@ function do_quiver!(p::Plot, x, y, dx, dy; thresh=0.02, scale=0.15)
 end;
 
 if !@isdefined(ptv)
-    p = 1.01 # fairly close to TV
+    α = 1.01 # fairly close to TV
     β = 1
     x1 = range(-1, 1, 101) * 2
     x2 = range(-1, 1, 101) * 2
-    tv_pdf2 = @. exp(-β * abs(x2' - x1)^p) # ignoring partition constant
-    tv_logpdf2 = log.(tv_pdf2)
+    tv_pdf2 = @. exp(-β * abs(x2' - x1)^α) # ignoring partition constant
     ptv0 = jim(x1, x2, tv_pdf2; title = "'TV' pdf", clim = (0, 1),
         color=:cividis, xlabel = L"x_1", ylabel = L"x_2",
     )
-    tv_score1 = @. β * abs(x2' - x1)^(p-1) * sign(x2' - x1)
+    tv_score1 = @. β * abs(x2' - x1)^(α-1) * sign(x2' - x1)
     ptv1 = jim(x1, x2, tv_score1; title = "TV score₁",
         color=:cividis, xlabel = L"x_1", ylabel = L"x_2", clim = (-1,1) .* 1.2,
     )
-    tv_score2 = @. -β * abs(x2' - x1)^(p-1) * sign(x2' - x1)
+    tv_score2 = @. -β * abs(x2' - x1)^(α-1) * sign(x2' - x1)
     ptv2 = jim(x1, x2, tv_score2; title = "TV score₂",
         color=:cividis, xlabel = L"x_1", ylabel = L"x_2", clim = (-1,1) .* 1.2,
     )
@@ -216,7 +219,7 @@ derivative(f::Function) = x -> ForwardDiff.derivative(f, x)
 gradient(f::Function) = x -> ForwardDiff.gradient(f, x)
 ## hessian(f::Function) = x -> ForwardDiff.hessian(f, x)
 score(d::Distribution) = derivative(logpdf(d))
-score_deriv(d::Distribution) = derivative(score(d)) # scalar x only
+score_deriv(d::Distribution) = derivative(score(d)); # scalar x only
 
 
 # Generate training data
@@ -370,7 +373,7 @@ ML estimation leads to a lower negative log-likelihood.
 
 negloglike(θ) = (-1/T) * sum(logpdf(model(θ)), data)
 opt_ml = optimize(negloglike, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
-##opt_ml = optimize(negloglike, θ0, BFGS(); autodiff = :forward)
+#src opt_ml = optimize(negloglike, θ0, BFGS(); autodiff = :forward)
 θml = minimizer(opt_ml)
 negloglike.([θml, θesm, θ0])
 
@@ -494,7 +497,7 @@ R(\bm{θ}) =
 =#
 
 
-# Regularized ISM cost function
+# Regularized score matching (RSM) cost function
 function cost_rsm2(x::AbstractVector{<:Real}, θ, λ)
     mod = model(θ)
     model_score = score(mod)
@@ -504,7 +507,7 @@ function cost_rsm2(x::AbstractVector{<:Real}, θ, λ)
     return (1/T) * (J_ism + λ * R)
 end;
 
-# Minimize this regularized ISM cost function:
+# Minimize this RSM cost function:
 λ = 2e0
 cost_rsm1 = (θ) -> cost_rsm2(data, θ, λ)
 
@@ -572,7 +575,7 @@ The inner expectation over ``g_{σ}``
 is typically analytically intractable,
 so in practice
 we replace it with a sample mean
-where we draw $M$ values of ``z``
+where we draw ``M ≥ 1`` values of ``\bm{z}``
 per training sample,
 leading to the following practical cost function
 ```math
@@ -596,11 +599,13 @@ for somewhat arbitrary choices of ``M`` and ``σ``.
 seed!(0)
 M = 9
 σdsm = 1.0
-z = σdsm * randn(T, M)
+z = σdsm * randn(T, M);
 
-
-# Define denoising score-matching cost function,
-# where input `data` is `T` and `z` is ``T × M``
+#=
+Define denoising score-matching cost function,
+where input `data` has size ``(T,)``
+and input `z` has size ``(T,M)``.
+=#
 function cost_dsm2(data::AbstractVector{<:Real}, z::AbstractArray{<:Real}, θ)
     model_score = score(model(θ))
     tmp = model_score.(data .+ z) # (T,M) # add noise to data
@@ -612,13 +617,13 @@ if !@isdefined(θdsm)
     opt_dsm = optimize(cost_dsm1, lower, upper, θ0, Fminbox(BFGS());
         autodiff = :forward)
     θdsm = minimizer(opt_dsm)
-end
+end;
 
 plot!(pf, pdf(model(θdsm)); label = "DSM Gaussian mixture", color=:orange)
 plot!(ps, score(model(θdsm)); label = "DSM score function", color=:orange)
 pfs = plot(pf, ps)
 
-#
+# At least for this case, DSM worked better than ML, ISM and RSM.
 prompt()
 
 
