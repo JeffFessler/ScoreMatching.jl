@@ -32,7 +32,7 @@ import ForwardDiff
 using LinearAlgebra: tr, norm
 using LaTeXStrings
 using Random: seed!; seed!(0)
-using StatsBase: mean
+using StatsBase: mean, std
 using Optim: optimize, BFGS, Fminbox
 import Optim: minimizer
 #src import ReverseDiff
@@ -198,6 +198,7 @@ of the (typically unknown) data distribution.
 calls this approach
 _explicit score matching_ (ESM).
 
+
 ## Illustration
 
 For didactic purposes,
@@ -219,18 +220,32 @@ score_deriv(d::Distribution) = derivative(score(d)) # scalar x only
 
 
 # Generate training data
-T = 100
-data_disn = :(Gamma(8, 1))
-data_dis = eval(data_disn)
-data_score = derivative(logpdf(data_dis))
-data = rand(data_dis, T)
-xlims = (-1, 25)
-xticks = [0, 8, 24]
-pf = scatter(data, zeros(T); xlims, xticks, color=:black)
-ph = histogram(data;
- bins=-1:0.5:25, xlims, xticks, label="data histogram")
-plot!(ph, x -> T*0.5 * pdf(data_dis)(x);
- color=:black, label="$data_disn Distribution")
+if !@isdefined(data)
+    T = 100
+    data_disn = :(Gamma(8, 1))
+    data_dis = eval(data_disn)
+    data_score = derivative(logpdf(data_dis))
+    data = rand(data_dis, T)
+    xlims = (-1, 25)
+    xticks = [0, 8, 20]
+
+    pfd = scatter(data, zeros(T); xlims, xticks, color=:black)
+    plot!(pfd, pdf(data_dis); label="$data_disn pdf",
+        color = :black,
+        xlabel = L"x",
+        ylabel = L"p(x)",
+    )
+
+    psd = plot(data_score; xlims=(1,20), label = "Data score function",
+        xticks, xlabel=L"x", color=:black)
+    tmp = score(Normal(mean(data), std(data)))
+    plot!(psd, tmp; label = "Normal score function", line=:dash, color=:black)
+
+    ph = histogram(data;
+        bins=-1:0.5:25, xlims, xticks, label="data histogram")
+    plot!(ph, x -> T*0.5 * pdf(data_dis)(x);
+        color=:black, label="$data_disn Distribution")
+end
 
 
 #=
@@ -295,11 +310,7 @@ cost_esm1 = (θ) -> cost_esm2(data, θ) + β * 0.5 * norm(θ)^2;
 #src θ0 = Float64[10, 15, -2, -2, 0];
 
 # Plot data pdf and initial model pdf
-plot!(pf, pdf(data_dis); xlims, xticks, label="$data_disn pdf",
-    color = :black,
-    xlabel = L"x",
-    ylabel = L"p(x) \ \mathrm{ and } \ p(x;θ)",
-)
+pf = deepcopy(pfd)
 plot!(pf, pdf(model(θ0)), label = "Initial Gaussian mixture", color=:blue)
 
 #
@@ -316,12 +327,14 @@ end
 
 # ## Explicit score matching (impractical)
 
-lower = [fill(0, nmix); fill(1.0, nmix); fill(-Inf, nmix-1)]
-upper = [fill(Inf, nmix); fill(Inf, nmix); fill(Inf, nmix-1)]
-opt_esm = optimize(cost_esm1, lower, upper, θ0, Fminbox(BFGS());
- autodiff = :forward)
-##opt_esm = optimize(cost_esm1, θ0, BFGS(); autodiff = :forward) # unconstrained
-θesm = minimizer(opt_esm)
+if !@isdefined(θesm)
+    lower = [fill(0, nmix); fill(1.0, nmix); fill(-Inf, nmix-1)]
+    upper = [fill(Inf, nmix); fill(Inf, nmix); fill(Inf, nmix-1)]
+    opt_esm = optimize(cost_esm1, lower, upper, θ0, Fminbox(BFGS());
+     autodiff = :forward)
+    ##opt_esm = optimize(cost_esm1, θ0, BFGS(); autodiff = :forward) # unconstrained
+    θesm = minimizer(opt_esm)
+end;
 
 plot!(pf, pdf(model(θesm)), label = "ESM Gaussian mixture", color=:green)
 
@@ -335,10 +348,8 @@ to see how well they match.
 The largest mismatch is in the tails of the distribution
 where there are few (if any) data points.
 =#
-ps = plot(data_score; xlims=(1,20), label = "Data score function",
-    xticks=[1,20], xlabel=L"x", color=:black)
+ps = deepcopy(psd)
 plot!(ps, score(model(θesm)); label = "ESM score function", color=:green)
-
 
 #
 prompt()
@@ -430,13 +441,14 @@ function cost_ism2(x::AbstractVector{<:Real}, θ)
 end;
 
 # Minimize this implicit score-matching cost function:
-cost_ism1 = (θ) -> cost_ism2(data, θ)
-opt_ism = optimize(cost_ism1, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
-##opt_ism = optimize(cost_ism1, θ0, BFGS(); autodiff = :forward)
-θism = minimizer(opt_ism)
-cost_ism1.([θism, θesm, θml])
+if !@isdefined(θism)
+    cost_ism1 = (θ) -> cost_ism2(data, θ)
+    opt_ism = optimize(cost_ism1, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
+    ##opt_ism = optimize(cost_ism1, θ0, BFGS(); autodiff = :forward)
+    θism = minimizer(opt_ism)
+    cost_ism1.([θism, θesm, θml])
+end;
 
-#
 plot!(pf, pdf(model(θism)), label = "ISM Gaussian mixture", color=:cyan)
 plot!(ps, score(model(θism)), label = "ISM score function", color=:cyan)
 pfs = plot(pf, ps)
@@ -496,10 +508,12 @@ end;
 λ = 2e0
 cost_rsm1 = (θ) -> cost_rsm2(data, θ, λ)
 
-opt_rsm = optimize(cost_rsm1, lower, upper, θ0, Fminbox(BFGS());
- autodiff = :forward)
-θrsm = minimizer(opt_rsm)
-cost_rsm1.([θrsm, θ0, θism, θesm, θml])
+if !@isdefined(θrsm)
+    opt_rsm = optimize(cost_rsm1, lower, upper, θ0, Fminbox(BFGS());
+        autodiff = :forward)
+    θrsm = minimizer(opt_rsm)
+    cost_rsm1.([θrsm, θ0, θism, θesm, θml])
+end
 
 #
 plot!(pf, pdf(model(θism)), label = "RSM Gaussian mixture", color=:red)
@@ -579,8 +593,9 @@ The next code blocks investigate this DSM approach
 for somewhat arbitrary choices of ``M`` and ``σ``.
 =#
 
+seed!(0)
 M = 9
-σdsm = 1.5
+σdsm = 1.0
 z = σdsm * randn(T, M)
 
 
@@ -592,13 +607,14 @@ function cost_dsm2(data::AbstractVector{<:Real}, z::AbstractArray{<:Real}, θ)
     return (0.5/T/M) * sum(abs2, tmp + z ./ σdsm^2) # todo think units
 end;
 
-cost_dsm1 = (θ) -> cost_dsm2(data, z, θ) # + β * 0.5 * norm(θ)^2;
+if !@isdefined(θdsm)
+    cost_dsm1 = (θ) -> cost_dsm2(data, z, θ) # + β * 0.5 * norm(θ)^2;
+    opt_dsm = optimize(cost_dsm1, lower, upper, θ0, Fminbox(BFGS());
+        autodiff = :forward)
+    θdsm = minimizer(opt_dsm)
+end
 
-opt_dsm = optimize(cost_dsm1, lower, upper, θ0, Fminbox(BFGS());
- autodiff = :forward)
-θdsm = minimizer(opt_dsm)
-
-plot!(pf, pdf(model(θdsm)), label = "DSM Gaussian mixture", color=:orange)
+plot!(pf, pdf(model(θdsm)); label = "DSM Gaussian mixture", color=:orange)
 plot!(ps, score(model(θdsm)); label = "DSM score function", color=:orange)
 pfs = plot(pf, ps)
 
@@ -617,13 +633,12 @@ e.g.,
 =#
 
 
+#throw()
+
 # ### Reproducibility
 
 # This page was generated with the following version of Julia:
-
 io = IOBuffer(); versioninfo(io); split(String(take!(io)), '\n')
 
-
 # And with the following package versions
-
 import Pkg; Pkg.status()
