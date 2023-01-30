@@ -23,10 +23,10 @@ This page was generated from a single Julia file:
 
 # Packages needed here.
 
-using ScoreMatching
+#src using ScoreMatching
 using MIRTjim: jim, prompt
 using Distributions: Distribution, Normal, MixtureModel, logpdf, pdf
-using Distributions: Cauchy, Gamma, Logistic, TDist
+using Distributions: Gamma, Uniform
 import Distributions: logpdf, pdf
 import ForwardDiff
 using LinearAlgebra: tr, norm
@@ -35,6 +35,8 @@ using Random: seed!; seed!(0)
 using StatsBase: mean, std
 using Optim: optimize, BFGS, Fminbox
 import Optim: minimizer
+import Flux
+using Flux: Chain, Dense, Adam, mse, relu, SamePad
 #src import ReverseDiff
 import Plots
 using Plots: Plot, plot, plot!, scatter, histogram, quiver!, default, gui
@@ -94,7 +96,7 @@ where here there are two parameters
 for ``β > 0`` and ``α > 1``.
 The _score function_
 for this model is
-``
+```math
 \bm{s}(\bm{x}; \bm{θ})
 =
 \nabla_{\bm{x}} \log p(\bm{x}; \bm{θ})
@@ -102,7 +104,7 @@ for this model is
 - β \nabla_{\bm{x}} |x_2 - x_1|^α
 = α β \begin{bmatrix} 1 \\ -1 \end{bmatrix}
 |x_2 - x_1|^{α-1} \mathrm{sign}(x_2 - x_1).
-``
+```
 
 This example is related to
 generalized Gaussian image priors,
@@ -149,14 +151,14 @@ if !@isdefined(ptv)
     x2 = range(-1, 1, 101) * 2
     tv_pdf2 = @. exp(-β * abs(x2' - x1)^α) # ignoring partition constant
     ptv0 = jim(x1, x2, tv_pdf2; title = "'TV' pdf", clim = (0, 1),
-        color=:cividis, xlabel = L"x_1", ylabel = L"x_2",
+        color=:cividis, xlabel = L"x_1", ylabel = L"x_2", prompt=false,
     )
     tv_score1 = @. β * abs(x2' - x1)^(α-1) * sign(x2' - x1)
-    ptv1 = jim(x1, x2, tv_score1; title = "TV score₁",
+    ptv1 = jim(x1, x2, tv_score1; title = "TV score₁", prompt=false,
         color=:cividis, xlabel = L"x_1", ylabel = L"x_2", clim = (-1,1) .* 1.2,
     )
     tv_score2 = @. -β * abs(x2' - x1)^(α-1) * sign(x2' - x1)
-    ptv2 = jim(x1, x2, tv_score2; title = "TV score₂",
+    ptv2 = jim(x1, x2, tv_score2; title = "TV score₂", prompt=false,
         color=:cividis, xlabel = L"x_1", ylabel = L"x_2", clim = (-1,1) .* 1.2,
     )
     ptvq = do_quiver!(deepcopy(ptv0), x1, x2, tv_score1, tv_score2)
@@ -228,9 +230,10 @@ if !@isdefined(data)
     data_disn = :(Gamma(8, 1))
     data_dis = eval(data_disn)
     data_score = derivative(logpdf(data_dis))
-    data = rand(data_dis, T)
+    data = Float32.(rand(data_dis, T))
     xlims = (-1, 25)
-    xticks = [0, 8, 20]
+    xticks = [0, floor(Int, minimum(data)), 8, ceil(Int, maximum(data))]
+    xticks = sort(xticks) # ticks that span the data range
 
     pfd = scatter(data, zeros(T); xlims, xticks, color=:black)
     plot!(pfd, pdf(data_dis); label="$data_disn pdf",
@@ -240,7 +243,7 @@ if !@isdefined(data)
     )
 
     psd = plot(data_score; xlims=(1,20), label = "Data score function",
-        xticks, xlabel=L"x", color=:black)
+        xticks, xlabel=L"x", color=:black, ylims = (-3, 5), yticks=[0,4])
     tmp = score(Normal(mean(data), std(data)))
     plot!(psd, tmp; label = "Normal score function", line=:dash, color=:black)
 
@@ -508,7 +511,7 @@ function cost_rsm2(x::AbstractVector{<:Real}, θ, λ)
 end;
 
 # Minimize this RSM cost function:
-λ = 2e0
+λ = 1e0
 cost_rsm1 = (θ) -> cost_rsm2(data, θ, λ)
 
 if !@isdefined(θrsm)
@@ -609,7 +612,7 @@ and input `z` has size ``(T,M)``.
 function cost_dsm2(data::AbstractVector{<:Real}, z::AbstractArray{<:Real}, θ)
     model_score = score(model(θ))
     tmp = model_score.(data .+ z) # (T,M) # add noise to data
-    return (0.5/T/M) * sum(abs2, tmp + z ./ σdsm^2) # todo think units
+    return (0.5/T/M) * sum(abs2, tmp + z ./ σdsm^2)
 end;
 
 if !@isdefined(θdsm)
@@ -635,10 +638,72 @@ Contemporary methods use a range of noise values
 with noise-conditional models,
 e.g.,
 [Song et al. ICLR 2021](https://openreview.net/forum?id=PxTIG12RRHS).
+
+
+Here we use a multi-layer perceptron (MLP)
+to model the 1D noise-conditional score function.
+We use a residual approach
+with data normalization
+and the baseline score of a standard normal distribution.
 =#
 
+function make_nnmodel(
+    data;
+    nweight = [2, 8, 16, 8, 1], # 2 inputs: [x, σ]
+    μdata = mean(data),
+    σdata = std(data),
+)
+    layers = [Dense(nweight[i-1], nweight[i], relu) for i in 2:length(nweight)]
+    ## Change of variables y ≜ (x - μdata) / σdata
+    myscale1(x) = (x .- [μdata,0]) ./ [σdata,1] # standardize
+    myscale2(y) = y / σdata # "un-standardize" for final score w.r.t x
+    pick2(y) = transpose(y[2,:]) # keep as a row vector
+    ## The baseline score function here is just -y; use in a "ResNet" way
+    tmp = Flux.Parallel(.-, Chain(layers...), pick2)
+    return Chain(myscale1, tmp, myscale2)
+end;
 
-#throw()
+# Function to make data pairs suitable for NN training.
+# Each use of this function's output is akin to ``M`` epochs of `data`.
+function dsm_data(M::Int = 9,
+    σdist = Uniform(0.4,1.5),
+)
+    σdsm = Float32.(rand(σdist, T, M))
+    z = σdsm .* randn(Float32, T, M)
+    tmp1 = data .+ z # (T,M)
+    tmp2 = transpose([vec(tmp1) vec(σdsm)]) # (2, T*M)
+    return (tmp2, -transpose(vec(z ./ σdsm.^2)))
+end
+
+if !@isdefined(nnmodel)
+    σnn = 1.0
+    nnmodel = make_nnmodel(data;)
+    ## nnmodel([data fill(σdsm, T)]')
+
+    loss3(model, x, y) = mse(model(x), y) / 2
+
+    iters = 2^9
+    dataset = [dsm_data() for i in 1:iters]
+    state1 = Flux.setup(Adam(), nnmodel)
+    @info "begin train"
+    @time Flux.train!(loss3, nnmodel, dataset, state1)
+end
+
+nnscore = x -> nnmodel([x, 0.5])[1] # lower end of σdist range
+tmp = deepcopy(ps)
+plot!(tmp, nnscore; label = "NN score function", color=:blue)
+
+# The noise-conditional NN score model worked fine.
+# Training "coarse to fine" might work better than the `Uniform` approach above.
+prompt()
+
+if false # look at the set of NN score functions
+    tmp = deepcopy(psd)
+    for s in 0.4:0.2:1.6
+        plot!(tmp, x -> nnmodel([x, s])[1]; label = "NN score function $s")
+    end
+end
+
 
 # ### Reproducibility
 
