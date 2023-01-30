@@ -36,7 +36,8 @@ using StatsBase: mean
 using Optim: optimize, BFGS, Fminbox
 import Optim: minimizer
 #src import ReverseDiff
-using Plots: plot, plot!, scatter, histogram, default, gui
+import Plots
+using Plots: Plot, plot, plot!, scatter, histogram, quiver!, default, gui
 using InteractiveUtils: versioninfo
 default(label="", markerstrokecolor=:auto)
 
@@ -68,7 +69,105 @@ where the normalizing constant is intractable.
 proposed an alternative called
 _score matching_
 that circumvents
-needing to find the normalizing constant.
+needing to find the normalizing constant
+by using the
+_score function_
+of the model distribution,
+defined as
+``
+\bm{s}(\bm{x}; \bm{θ}) =
+\nabla_{\bm{x}} \log p(\bm{x}; \bm{θ}).
+``
+
+## Score functions
+
+Before describing score matching methods,
+we first illustrate
+what a score function looks like.
+
+Consider the (improper) model
+``
+p(\bm{x}; \bm{θ}) = \frac{1}{Z(\bm{θ}) \mathrm{e}^{-β |x_2 - x_1|^p}
+``
+where here there are two parameters
+``\bm{θ} = (β, p)'',
+for ``β > 0`` and ``p > 1`.
+The _score function_
+for this model is
+``
+\bm{s}(\bm{x}; \bm{θ})
+=
+\nabla_{\bm{x}} \log p(\bm{x}; \bm{θ})
+=
+\nabla_{\bm{x}} -β |x_2 - x_1|^p
+= p β \begin{bmatrix} 1 \\ -1 \end{bmatrix}
+(x_2 - x_1)^{p-1} * sign(x_2 - x_1).
+``
+
+This example is related to
+generalized Gaussian image priors
+and,
+for ``p=1``,
+is related to total variation (TV) regularization.
+
+Here is a visualization
+of the log pdf
+and the score functions.
+=#
+
+function do_quiver!(p::Plot, x, y, dx, dy; thresh=0.02, scale=0.15)
+    tmp = d -> maximum(abs, filter(!isnan, d))
+    dmax = max(tmp(dx), tmp(dy))
+    ix = 5:11:length(x)
+    iy = 5:11:length(y)
+    x, y = x .+ 0*y', 0*x .+ y'
+    x = x[ix,iy]
+    y = y[ix,iy]
+    dx = dx[ix,iy] / dmax * scale
+    dy = dy[ix,iy] / dmax * scale
+    good = @. (abs(dx) > thresh) | (abs(dy) > thresh)
+    x = x[good]
+    y = y[good]
+    dx = dx[good]
+    dy = dy[good]
+    Plots.arrow(:open, :head, 0.001, 0.001)
+    return quiver!(p, x, y, quiver=(dx,dy);
+        aspect_ratio = 1,
+        title = "TV score quiver",
+        color = :red,
+    )
+end;
+
+if !@isdefined(ptv)
+    p = 1.01 # fairly close to TV
+    β = 1
+    x1 = range(-1, 1, 101) * 2
+    x2 = range(-1, 1, 101) * 2
+    tv_pdf2 = @. exp(-β * abs(x2' - x1)^p) # ignoring partition constant
+    tv_logpdf2 = log.(tv_pdf2)
+    ptv0 = jim(x1, x2, tv_pdf2; title = "'TV' pdf", clim = (0, 1),
+        color=:cividis, xlabel = L"x_1", ylabel = L"x_2",
+    )
+    tv_score1 = @. β * abs(x2' - x1)^(p-1) * sign(x2' - x1)
+    ptv1 = jim(x1, x2, tv_score1; title = "TV score₁",
+        color=:cividis, xlabel = L"x_1", ylabel = L"x_2", clim = (-1,1) .* 1.2,
+    )
+    tv_score2 = @. -β * abs(x2' - x1)^(p-1) * sign(x2' - x1)
+    ptv2 = jim(x1, x2, tv_score2; title = "TV score₂",
+        color=:cividis, xlabel = L"x_1", ylabel = L"x_2", clim = (-1,1) .* 1.2,
+    )
+    ptvq = do_quiver!(deepcopy(ptv0), x1, x2, tv_score1, tv_score2)
+    ptv = plot(ptv0, ptv1, ptvq, ptv2)
+    ## Plots.savefig("score-tv.pdf")
+end
+
+
+#
+prompt()
+
+
+#=
+## Score matching
 
 The idea behind the score matching approach
 to model fitting is
