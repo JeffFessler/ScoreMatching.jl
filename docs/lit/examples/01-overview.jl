@@ -23,20 +23,23 @@ This page was generated from a single Julia file:
 
 # Packages needed here.
 
-using ScoreMatching
+#src using ScoreMatching
 using MIRTjim: jim, prompt
 using Distributions: Distribution, Normal, MixtureModel, logpdf, pdf
-using Distributions: Cauchy, Gamma, Logistic, TDist
+using Distributions: Gamma, Uniform
 import Distributions: logpdf, pdf
 import ForwardDiff
 using LinearAlgebra: tr, norm
 using LaTeXStrings
 using Random: seed!; seed!(0)
-using StatsBase: mean
+using StatsBase: mean, std
 using Optim: optimize, BFGS, Fminbox
 import Optim: minimizer
+import Flux
+using Flux: Chain, Dense, Adam, mse, relu, SamePad
 #src import ReverseDiff
-using Plots: plot, plot!, scatter, histogram, default, gui
+import Plots
+using Plots: Plot, plot, plot!, scatter, histogram, quiver!, default, gui
 using InteractiveUtils: versioninfo
 default(label="", markerstrokecolor=:auto)
 
@@ -53,11 +56,11 @@ isinteractive() ? jim(:prompt, true) : prompt(:prompt);
 Given ``T``
 [IID](https://en.wikipedia.org/wiki/Independent_and_identically_distributed_random_variables)
 training data samples
-``\mathbf{x}_1, …, \mathbf{x}_T ∈ \mathbb{R}^N``,
+``\bm{x}_1, …, \bm{x}_T ∈ \mathbb{R}^N``,
 we often want to find the parameters
-``\mathbf{θ}``
+``\bm{θ}``
 of a model distribution
-``p(\mathbf{x}; \mathbf{θ})``
+``p(\bm{x}; \bm{θ})``
 that "best fit" the data.
 
 Maximum-likelihood estimation
@@ -68,29 +71,130 @@ where the normalizing constant is intractable.
 proposed an alternative called
 _score matching_
 that circumvents
-needing to find the normalizing constant.
+needing to find the normalizing constant
+by using the
+_score function_
+of the model distribution,
+defined as
+``
+\bm{s}(\bm{x}; \bm{θ}) =
+\nabla_{\bm{x}} \log p(\bm{x}; \bm{θ}).
+``
+
+## Score functions
+
+Before describing score matching methods,
+we first illustrate
+what a score function looks like.
+
+Consider the (improper) model
+``
+p(\bm{x}; \bm{θ}) = \frac{1}{Z(\bm{θ})} \mathrm{e}^{-β |x_2 - x_1|^α}
+``
+where here there are two parameters
+``\bm{θ} = (β, α)``,
+for ``β > 0`` and ``α > 1``.
+The _score function_
+for this model is
+```math
+\bm{s}(\bm{x}; \bm{θ})
+=
+\nabla_{\bm{x}} \log p(\bm{x}; \bm{θ})
+=
+- β \nabla_{\bm{x}} |x_2 - x_1|^α
+= α β \begin{bmatrix} 1 \\ -1 \end{bmatrix}
+|x_2 - x_1|^{α-1} \mathrm{sign}(x_2 - x_1).
+```
+
+This example is related to
+generalized Gaussian image priors,
+and,
+for ``α=1``,
+is related to total variation (TV) regularization.
+
+Here is a visualization
+of this 'TV' pdf
+and the score functions.
+
+The quiver plot
+shows that the score function
+describe directions that ascend the prior.
+=#
+
+function do_quiver!(p::Plot, x, y, dx, dy; thresh=0.02, scale=0.15)
+    tmp = d -> maximum(abs, filter(!isnan, d))
+    dmax = max(tmp(dx), tmp(dy))
+    ix = 5:11:length(x)
+    iy = 5:11:length(y)
+    x, y = x .+ 0*y', 0*x .+ y'
+    x = x[ix,iy]
+    y = y[ix,iy]
+    dx = dx[ix,iy] / dmax * scale
+    dy = dy[ix,iy] / dmax * scale
+    good = @. (abs(dx) > thresh) | (abs(dy) > thresh)
+    x = x[good]
+    y = y[good]
+    dx = dx[good]
+    dy = dy[good]
+    Plots.arrow(:open, :head, 0.001, 0.001)
+    return quiver!(p, x, y, quiver=(dx,dy);
+        aspect_ratio = 1,
+        title = "TV score quiver",
+        color = :red,
+    )
+end;
+
+if !@isdefined(ptv)
+    α = 1.01 # fairly close to TV
+    β = 1
+    x1 = range(-1, 1, 101) * 2
+    x2 = range(-1, 1, 101) * 2
+    tv_pdf2 = @. exp(-β * abs(x2' - x1)^α) # ignoring partition constant
+    ptv0 = jim(x1, x2, tv_pdf2; title = "'TV' pdf", clim = (0, 1),
+        color=:cividis, xlabel = L"x_1", ylabel = L"x_2", prompt=false,
+    )
+    tv_score1 = @. β * abs(x2' - x1)^(α-1) * sign(x2' - x1)
+    ptv1 = jim(x1, x2, tv_score1; title = "TV score₁", prompt=false,
+        color=:cividis, xlabel = L"x_1", ylabel = L"x_2", clim = (-1,1) .* 1.2,
+    )
+    tv_score2 = @. -β * abs(x2' - x1)^(α-1) * sign(x2' - x1)
+    ptv2 = jim(x1, x2, tv_score2; title = "TV score₂", prompt=false,
+        color=:cividis, xlabel = L"x_1", ylabel = L"x_2", clim = (-1,1) .* 1.2,
+    )
+    ptvq = do_quiver!(deepcopy(ptv0), x1, x2, tv_score1, tv_score2)
+    ptv = plot(ptv0, ptv1, ptvq, ptv2)
+    ## Plots.savefig("score-tv.pdf")
+end
+
+
+#
+prompt()
+
+
+#=
+## Score matching
 
 The idea behind the score matching approach
 to model fitting is
 ```math
-\hat{\mathbf{θ}} = \arg \min_{\mathbf{θ}}
-J(\mathbf{θ})
+\hat{\bm{θ}} = \arg \min_{\bm{θ}}
+J(\bm{θ})
 ,\qquad
-J(\mathbf{θ}) =
+J(\bm{θ}) =
 \frac{1}{T} ∑_{t=1}^T
-\| \mathbf{s}(\mathbf{x}_t; \mathbf{θ}) - \mathbf{s}(\mathbf{x}_t) \|^2
+\| \bm{s}(\bm{x}_t; \bm{θ}) - \bm{s}(\bm{x}_t) \|^2
 ```
 where
 ``
-\mathbf{s}(\mathbf{x}; \mathbf{θ}) =
-\nabla_{\mathbf{x}} \log p(\mathbf{x}; \mathbf{θ})
+\bm{s}(\bm{x}; \bm{θ}) =
+\nabla_{\bm{x}} \log p(\bm{x}; \bm{θ})
 ``
 is the _score function_
 of the model distribution,
 and
 ``
-\mathbf{s}(\mathbf{x}) =
-\nabla_{\mathbf{x}} \log p(\mathbf{x})
+\bm{s}(\bm{x}) =
+\nabla_{\bm{x}} \log p(\bm{x})
 ``
 is the _score function_
 of the (typically unknown) data distribution.
@@ -98,6 +202,7 @@ of the (typically unknown) data distribution.
 [Vincent, 2011](https://doi.org/10.1162/NECO_a_00142)
 calls this approach
 _explicit score matching_ (ESM).
+
 
 ## Illustration
 
@@ -116,22 +221,37 @@ derivative(f::Function) = x -> ForwardDiff.derivative(f, x)
 gradient(f::Function) = x -> ForwardDiff.gradient(f, x)
 ## hessian(f::Function) = x -> ForwardDiff.hessian(f, x)
 score(d::Distribution) = derivative(logpdf(d))
-score_deriv(d::Distribution) = derivative(score(d)) # scalar x only
+score_deriv(d::Distribution) = derivative(score(d)); # scalar x only
 
 
 # Generate training data
-T = 100
-data_disn = :(Gamma(8, 1))
-data_dis = eval(data_disn)
-data_score = derivative(logpdf(data_dis))
-data = rand(data_dis, T)
-xlims = (-1, 25)
-xticks = [0, 8, 24]
-pf = scatter(data, zeros(T); xlims, xticks, color=:black)
-ph = histogram(data;
- bins=-1:0.5:25, xlims, xticks, label="data histogram")
-plot!(ph, x -> T*0.5 * pdf(data_dis)(x);
- color=:black, label="$data_disn Distribution")
+if !@isdefined(data)
+    T = 100
+    data_disn = :(Gamma(8, 1))
+    data_dis = eval(data_disn)
+    data_score = derivative(logpdf(data_dis))
+    data = Float32.(rand(data_dis, T))
+    xlims = (-1, 25)
+    xticks = [0, floor(Int, minimum(data)), 8, ceil(Int, maximum(data))]
+    xticks = sort(xticks) # ticks that span the data range
+
+    pfd = scatter(data, zeros(T); xlims, xticks, color=:black)
+    plot!(pfd, pdf(data_dis); label="$data_disn pdf",
+        color = :black,
+        xlabel = L"x",
+        ylabel = L"p(x)",
+    )
+
+    psd = plot(data_score; xlims=(1,20), label = "Data score function",
+        xticks, xlabel=L"x", color=:black, ylims = (-3, 5), yticks=[0,4])
+    tmp = score(Normal(mean(data), std(data)))
+    plot!(psd, tmp; label = "Normal score function", line=:dash, color=:black)
+
+    ph = histogram(data;
+        bins=-1:0.5:25, xlims, xticks, label="data histogram")
+    plot!(ph, x -> T*0.5 * pdf(data_dis)(x);
+        color=:black, label="$data_disn Distribution")
+end
 
 
 #=
@@ -196,11 +316,7 @@ cost_esm1 = (θ) -> cost_esm2(data, θ) + β * 0.5 * norm(θ)^2;
 #src θ0 = Float64[10, 15, -2, -2, 0];
 
 # Plot data pdf and initial model pdf
-plot!(pf, pdf(data_dis); xlims, xticks, label="$data_disn pdf",
-    color = :black,
-    xlabel = L"x",
-    ylabel = L"p(x) \ \mathrm{ and } \ p(x;θ)",
-)
+pf = deepcopy(pfd)
 plot!(pf, pdf(model(θ0)), label = "Initial Gaussian mixture", color=:blue)
 
 #
@@ -217,12 +333,14 @@ end
 
 # ## Explicit score matching (impractical)
 
-lower = [fill(0, nmix); fill(1.0, nmix); fill(-Inf, nmix-1)]
-upper = [fill(Inf, nmix); fill(Inf, nmix); fill(Inf, nmix-1)]
-opt_esm = optimize(cost_esm1, lower, upper, θ0, Fminbox(BFGS());
- autodiff = :forward)
-##opt_esm = optimize(cost_esm1, θ0, BFGS(); autodiff = :forward) # unconstrained
-θesm = minimizer(opt_esm)
+if !@isdefined(θesm)
+    lower = [fill(0, nmix); fill(1.0, nmix); fill(-Inf, nmix-1)]
+    upper = [fill(Inf, nmix); fill(Inf, nmix); fill(Inf, nmix-1)]
+    opt_esm = optimize(cost_esm1, lower, upper, θ0, Fminbox(BFGS());
+     autodiff = :forward)
+    ##opt_esm = optimize(cost_esm1, θ0, BFGS(); autodiff = :forward) # unconstrained
+    θesm = minimizer(opt_esm)
+end;
 
 plot!(pf, pdf(model(θesm)), label = "ESM Gaussian mixture", color=:green)
 
@@ -236,10 +354,8 @@ to see how well they match.
 The largest mismatch is in the tails of the distribution
 where there are few (if any) data points.
 =#
-ps = plot(data_score; xlims=(1,20), label = "Data score function",
-    xticks=[1,20], xlabel=L"x", color=:black)
+ps = deepcopy(psd)
 plot!(ps, score(model(θesm)); label = "ESM score function", color=:green)
-
 
 #
 prompt()
@@ -260,7 +376,7 @@ ML estimation leads to a lower negative log-likelihood.
 
 negloglike(θ) = (-1/T) * sum(logpdf(model(θ)), data)
 opt_ml = optimize(negloglike, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
-##opt_ml = optimize(negloglike, θ0, BFGS(); autodiff = :forward)
+#src opt_ml = optimize(negloglike, θ0, BFGS(); autodiff = :forward)
 θml = minimizer(opt_ml)
 negloglike.([θml, θesm, θ0])
 
@@ -294,19 +410,19 @@ which is unknown in practical situations.
 derived the following more practical cost function
 that is independent of the unknown data score function:
 ```math
-J_{\mathrm{ISM}}(\mathbf{θ}) =
+J_{\mathrm{ISM}}(\bm{θ}) =
 \frac{1}{T} ∑_{t=1}^T
-∑_{i=1}^N ∂_i s_i(\mathbf{x}_t; \mathbf{θ})
- + \frac{1}{2} | s_i(\mathbf{x}_t; \mathbf{θ}) |^2,
+∑_{i=1}^N ∂_i s_i(\bm{x}_t; \bm{θ})
+ + \frac{1}{2} | s_i(\bm{x}_t; \bm{θ}) |^2,
 ```
 ignoring a constant that is independent of ``θ,``
 where
 ```math
-∂_i s_i(\mathbf{x}; \mathbf{θ})
+∂_i s_i(\bm{x}; \bm{θ})
 =
-\frac{∂}{∂ x_i} s_i(\mathbf{x}; \mathbf{θ})
+\frac{∂}{∂ x_i} s_i(\bm{x}; \bm{θ})
 =
-\frac{∂^2}{∂ x_i^2} \log p(\mathbf{x}; \mathbf{θ}).
+\frac{∂^2}{∂ x_i^2} \log p(\bm{x}; \bm{θ}).
 ```
 
 (For large models
@@ -331,13 +447,14 @@ function cost_ism2(x::AbstractVector{<:Real}, θ)
 end;
 
 # Minimize this implicit score-matching cost function:
-cost_ism1 = (θ) -> cost_ism2(data, θ)
-opt_ism = optimize(cost_ism1, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
-##opt_ism = optimize(cost_ism1, θ0, BFGS(); autodiff = :forward)
-θism = minimizer(opt_ism)
-cost_ism1.([θism, θesm, θml])
+if !@isdefined(θism)
+    cost_ism1 = (θ) -> cost_ism2(data, θ)
+    opt_ism = optimize(cost_ism1, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
+    ##opt_ism = optimize(cost_ism1, θ0, BFGS(); autodiff = :forward)
+    θism = minimizer(opt_ism)
+    cost_ism1.([θism, θesm, θml])
+end;
 
-#
 plot!(pf, pdf(model(θism)), label = "ISM Gaussian mixture", color=:cyan)
 plot!(ps, score(model(θism)), label = "ISM score function", color=:cyan)
 pfs = plot(pf, ps)
@@ -373,17 +490,17 @@ and suggested a regularized version
 corresponding to the following (practical) cost function:
 
 ```math
-J_{\mathrm{RSM}}(\mathbf{θ}) =
-J_{\mathrm{ISM}}(\mathbf{θ}) + λ R(\mathbf{θ})
+J_{\mathrm{RSM}}(\bm{θ}) =
+J_{\mathrm{ISM}}(\bm{θ}) + λ R(\bm{θ})
 ,\quad
-R(\mathbf{θ}) =
+R(\bm{θ}) =
 \frac{1}{T} ∑_{t=1}^T
-∑_{i=1}^N | ∂_i s_i(\mathbf{x}_t; \mathbf{θ}) |^2.
+∑_{i=1}^N | ∂_i s_i(\bm{x}_t; \bm{θ}) |^2.
 ```
 =#
 
 
-# Regularized ISM cost function
+# Regularized score matching (RSM) cost function
 function cost_rsm2(x::AbstractVector{<:Real}, θ, λ)
     mod = model(θ)
     model_score = score(mod)
@@ -393,14 +510,16 @@ function cost_rsm2(x::AbstractVector{<:Real}, θ, λ)
     return (1/T) * (J_ism + λ * R)
 end;
 
-# Minimize this regularized ISM cost function:
-λ = 2e0
+# Minimize this RSM cost function:
+λ = 1e0
 cost_rsm1 = (θ) -> cost_rsm2(data, θ, λ)
 
-opt_rsm = optimize(cost_rsm1, lower, upper, θ0, Fminbox(BFGS());
- autodiff = :forward)
-θrsm = minimizer(opt_rsm)
-cost_rsm1.([θrsm, θ0, θism, θesm, θml])
+if !@isdefined(θrsm)
+    opt_rsm = optimize(cost_rsm1, lower, upper, θ0, Fminbox(BFGS());
+        autodiff = :forward)
+    θrsm = minimizer(opt_rsm)
+    cost_rsm1.([θrsm, θ0, θism, θesm, θml])
+end
 
 #
 plot!(pf, pdf(model(θism)), label = "RSM Gaussian mixture", color=:red)
@@ -423,16 +542,17 @@ called
 _denoising score matching_ (DSM)
 that matches
 the model score function
-to a Parzen density estimate
+to the score function
+of a Parzen density estimate
 of the form
 ```math
-\hat{p}(x) = \frac{1}{T} ∑_{t=1}^T q(x - x_t; σ)
+q_{σ}(\bm{x}) = \frac{1}{T} ∑_{t=1}^T g_{σ}(\bm{x} - \bm{x}_t)
 ```
-where ``q`` denotes a Gaussian distribution
-``\mathcal{N}(0, σ)``.
+where ``g_{σ}`` denotes a Gaussian distribution
+``\mathcal{N}(\bm{0}, σ \bm{I})``.
 
 Statistically,
-this is equivalent
+this approach is equivalent
 (in expectation)
 to adding noise
 to the measurements,
@@ -440,26 +560,155 @@ and then applying
 the ESM approach.
 The DSM cost function is
 ```math
-J_{\mathrm{DSM}}(\mathbf{θ}) =
-E_{q(x,\tilde(x))}\left[
-\frac{1}{2} s(\tilde{x}; θ) - \frac{x - \tilde{x}}{σ^2}
+J_{\mathrm{DSM}}(\bm{θ}) =
+\frac{1}{T} ∑_{t=1}^T
+E_{\bm{z} ∼ g_{σ}}\left[
+\frac{1}{2}
+\left\|
+\bm{s}(\bm{x} + \bm{z}; \bm{θ}) + \frac{\bm{z}}{σ^2}
+\right\|_2^2
 \right].
 ```
 
 A benefit of this approach
 is that it does not require
-differentiating the model score function w.r.t ``x``.
-todo DSM
+differentiating the model score function w.r.t ``\bm{x}``.
+
+The inner expectation over ``g_{σ}``
+is typically analytically intractable,
+so in practice
+we replace it with a sample mean
+where we draw ``M ≥ 1`` values of ``\bm{z}``
+per training sample,
+leading to the following practical cost function
+```math
+J_{\mathrm{DSM}, \, M}(\bm{θ}) =
+\frac{1}{T} ∑_{t=1}^T
+\frac{1}{M} ∑_{m=1}^M
+\frac{1}{2}
+\left\|
+s(\bm{x} + \bm{z}_{t,m}; \bm{θ}) + \frac{\bm{z}_{t,m}}{σ^2}
+\right\|_2^2,
+```
+where the noise samples
+``\bm{z}_{t,m}``
+are IID.
+
+
+The next code blocks investigate this DSM approach
+for somewhat arbitrary choices of ``M`` and ``σ``.
 =#
+
+seed!(0)
+M = 9
+σdsm = 1.0
+z = σdsm * randn(T, M);
+
+#=
+Define denoising score-matching cost function,
+where input `data` has size ``(T,)``
+and input `z` has size ``(T,M)``.
+=#
+function cost_dsm2(data::AbstractVector{<:Real}, z::AbstractArray{<:Real}, θ)
+    model_score = score(model(θ))
+    tmp = model_score.(data .+ z) # (T,M) # add noise to data
+    return (0.5/T/M) * sum(abs2, tmp + z ./ σdsm^2)
+end;
+
+if !@isdefined(θdsm)
+    cost_dsm1 = (θ) -> cost_dsm2(data, z, θ) # + β * 0.5 * norm(θ)^2;
+    opt_dsm = optimize(cost_dsm1, lower, upper, θ0, Fminbox(BFGS());
+        autodiff = :forward)
+    θdsm = minimizer(opt_dsm)
+end;
+
+plot!(pf, pdf(model(θdsm)); label = "DSM Gaussian mixture", color=:orange)
+plot!(ps, score(model(θdsm)); label = "DSM score function", color=:orange)
+pfs = plot(pf, ps)
+
+# At least for this case, DSM worked better than ML, ISM and RSM.
+prompt()
+
+
+#=
+## Noise-conditional models
+
+Above we used a single noise value for DSM.
+Contemporary methods use a range of noise values
+with noise-conditional models,
+e.g.,
+[Song et al. ICLR 2021](https://openreview.net/forum?id=PxTIG12RRHS).
+
+
+Here we use a multi-layer perceptron (MLP)
+to model the 1D noise-conditional score function.
+We use a residual approach
+with data normalization
+and the baseline score of a standard normal distribution.
+=#
+
+function make_nnmodel(
+    data;
+    nweight = [2, 8, 16, 8, 1], # 2 inputs: [x, σ]
+    μdata = mean(data),
+    σdata = std(data),
+)
+    layers = [Dense(nweight[i-1], nweight[i], relu) for i in 2:length(nweight)]
+    ## Change of variables y ≜ (x - μdata) / σdata
+    myscale1(x) = (x .- [μdata,0]) ./ [σdata,1] # standardize
+    myscale2(y) = y / σdata # "un-standardize" for final score w.r.t x
+    pick2(y) = transpose(y[2,:]) # keep as a row vector
+    ## The baseline score function here is just -y; use in a "ResNet" way
+    tmp = Flux.Parallel(.-, Chain(layers...), pick2)
+    return Chain(myscale1, tmp, myscale2)
+end;
+
+# Function to make data pairs suitable for NN training.
+# Each use of this function's output is akin to ``M`` epochs of `data`.
+function dsm_data(M::Int = 9,
+    σdist = Uniform(0.4,1.5),
+)
+    σdsm = Float32.(rand(σdist, T, M))
+    z = σdsm .* randn(Float32, T, M)
+    tmp1 = data .+ z # (T,M)
+    tmp2 = transpose([vec(tmp1) vec(σdsm)]) # (2, T*M)
+    return (tmp2, -transpose(vec(z ./ σdsm.^2)))
+end
+
+if !@isdefined(nnmodel)
+    σnn = 1.0
+    nnmodel = make_nnmodel(data;)
+    ## nnmodel([data fill(σdsm, T)]')
+
+    loss3(model, x, y) = mse(model(x), y) / 2
+
+    iters = 2^9
+    dataset = [dsm_data() for i in 1:iters]
+    state1 = Flux.setup(Adam(), nnmodel)
+    @info "begin train"
+    @time Flux.train!(loss3, nnmodel, dataset, state1)
+end
+
+nnscore = x -> nnmodel([x, 0.5])[1] # lower end of σdist range
+tmp = deepcopy(ps)
+plot!(tmp, nnscore; label = "NN score function", color=:blue)
+
+# The noise-conditional NN score model worked fine.
+# Training "coarse to fine" might work better than the `Uniform` approach above.
+prompt()
+
+if false # look at the set of NN score functions
+    tmp = deepcopy(psd)
+    for s in 0.4:0.2:1.6
+        plot!(tmp, x -> nnmodel([x, s])[1]; label = "NN score function $s")
+    end
+end
 
 
 # ### Reproducibility
 
 # This page was generated with the following version of Julia:
-
 io = IOBuffer(); versioninfo(io); split(String(take!(io)), '\n')
 
-
 # And with the following package versions
-
 import Pkg; Pkg.status()
