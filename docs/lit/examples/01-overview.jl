@@ -36,7 +36,7 @@ using StatsBase: mean, std
 using Optim: optimize, BFGS, Fminbox
 import Optim: minimizer
 import Flux
-using Flux: Chain, Dense, Adam, mse, relu, SamePad
+using Flux: Chain, Dense, Adam
 #src import ReverseDiff
 import Plots
 using Plots: Plot, plot, plot!, scatter, histogram, quiver!, default, gui
@@ -331,7 +331,7 @@ if false
 end
 
 
-# ## Explicit score matching (impractical)
+# ## Explicit score matching (ESM) (impractical)
 
 if !@isdefined(θesm)
     lower = [fill(0, nmix); fill(1.0, nmix); fill(-Inf, nmix-1)]
@@ -399,7 +399,7 @@ prompt()
 
 
 #=
-## Implicit score matching (more practical)
+## Implicit score matching (ISM) (more practical)
 
 The above ESM fitting process
 used `score(data_dis)`,
@@ -482,7 +482,7 @@ cost_esm1.(tmp) - cost_ism1.(tmp)
 
 
 #=
-## Regularized score matching
+## Regularized score matching (RSM)
 
 [Kingma & LeCun, 2010](https://doi.org/10.5555/2997189.2997315)
 reported some instability of ISM
@@ -562,7 +562,7 @@ The DSM cost function is
 ```math
 J_{\mathrm{DSM}}(\bm{θ}) =
 \frac{1}{T} ∑_{t=1}^T
-E_{\bm{z} ∼ g_{σ}}\left[
+\mathbb{E}_{\bm{z} ∼ g_{σ}}\left[
 \frac{1}{2}
 \left\|
 \bm{s}(\bm{x} + \bm{z}; \bm{θ}) + \frac{\bm{z}}{σ^2}
@@ -631,42 +631,65 @@ prompt()
 
 
 #=
-## Noise-conditional models
+## Noise-conditional score-matching (NCSM)
 
 Above we used a single noise value for DSM.
 Contemporary methods use a range of noise values
-with noise-conditional models,
+with noise-conditional score models,
 e.g.,
 [Song et al. ICLR 2021](https://openreview.net/forum?id=PxTIG12RRHS).
 
+A representative formulation
+uses a ``σ^2``-weighted expectation
+like the following:
+```math
+J_{\mathrm{NCSM}}(\bm{θ}) ≜
+\mathbb{E}_{σ ∼ f(σ)}\left[ σ^2 J_{\mathrm{DSM}}(\bm{θ}, σ) \right],
+```
+```math
+J_{\mathrm{DSM}}(\bm{θ}, σ) ≜
+\frac{1}{T} ∑_{t=1}^T
+\mathbb{E}_{\bm{z} ∼ g_{σ}}\left[
+\frac{1}{2}
+\left\|
+\bm{s}(\bm{x} + \bm{z}; \bm{θ}, σ) + \frac{\bm{z}}{σ^2}
+\right\|_2^2
+\right].
+```
+for some distribution ``f(σ)`` of noise levels.
 
 Here we use a multi-layer perceptron (MLP)
-to model the 1D noise-conditional score function.
+to model the 1D noise-conditional score function
+``\bm{s}(\bm{x}; \bm{θ}, σ)``.
 We use a residual approach
 with data normalization
 and the baseline score of a standard normal distribution.
 =#
 
 function make_nnmodel(
-    data;
-    nweight = [2, 8, 16, 8, 1], # 2 inputs: [x, σ]
+    data; # (2,?)
+    nweight = [2, 8, 16, 8, 1], # 2 inputs: [x, σ] for NCSM
     μdata = mean(data),
     σdata = std(data),
 )
-    layers = [Dense(nweight[i-1], nweight[i], relu) for i in 2:length(nweight)]
-    ## Change of variables y ≜ (x - μdata) / σdata
-    myscale1(x) = (x .- [μdata,0]) ./ [σdata,1] # standardize
-    myscale2(y) = y / σdata # "un-standardize" for final score w.r.t x
-    pick2(y) = transpose(y[2,:]) # keep as a row vector
-    ## The baseline score function here is just -y; use in a "ResNet" way
-    tmp = Flux.Parallel(.-, Chain(layers...), pick2)
-    return Chain(myscale1, tmp, myscale2)
+    layers = [Dense(nweight[i-1], nweight[i], Flux.gelu) for i in 2:length(nweight)]
+    ## Change of variables y ≜ (x - μdata) / σ(x + z)
+    pick1(x) = transpose(x[1,:]) # extract 1D data as a row vector
+    pick2(x) = transpose(x[2,:]) # extract σ as a row vector
+    quad(σ) = sqrt(σ^2 + σdata^2) # σ(x + z) (quadrature)
+    scale1(x) = [(pick1(x) .- μdata) ./ quad.(pick2(x)); pick2(x)] # standardize
+    ## The baseline score function here is just -y; use in a "ResNet" way:
+    tmp1 = Flux.Parallel(.-, Chain(layers...), pick1)
+    scale2(σ) = quad.(σ) / σdata^2 # "un-standardize" for final score w.r.t x
+    tmp2 = Flux.Parallel(.*, tmp1, scale2 ∘ pick2)
+    return Chain(scale1, tmp2)
 end;
 
 # Function to make data pairs suitable for NN training.
 # Each use of this function's output is akin to ``M`` epochs of `data`.
-function dsm_data(M::Int = 9,
-    σdist = Uniform(0.4,1.5),
+function dsm_data(
+    M::Int = 9,
+    σdist = Uniform(0.2,2.0),
 )
     σdsm = Float32.(rand(σdist, T, M))
     z = σdsm .* randn(Float32, T, M)
@@ -676,11 +699,11 @@ function dsm_data(M::Int = 9,
 end
 
 if !@isdefined(nnmodel)
-    σnn = 1.0
     nnmodel = make_nnmodel(data;)
-    ## nnmodel([data fill(σdsm, T)]')
 
-    loss3(model, x, y) = mse(model(x), y) / 2
+#src loss3(model, x, y) = Flux.mse(model(x), y) / 2 # old
+    ## σ^2-weighted MSE loss:
+    loss3(model, x, y) = mean(abs2, (model(x) - y) .* transpose(x[2,:])) / 2
 
     iters = 2^9
     dataset = [dsm_data() for i in 1:iters]
@@ -689,19 +712,20 @@ if !@isdefined(nnmodel)
     @time Flux.train!(loss3, nnmodel, dataset, state1)
 end
 
-nnscore = x -> nnmodel([x, 0.5])[1] # lower end of σdist range
+nnscore = x -> nnmodel([x, 0.4])[1] # lower end of σdist range
 tmp = deepcopy(ps)
 plot!(tmp, nnscore; label = "NN score function", color=:blue)
 
-# The noise-conditional NN score model worked fine.
+# The noise-conditional NN score model worked OK.
 # Training "coarse to fine" might work better than the `Uniform` approach above.
 prompt()
 
 if false # look at the set of NN score functions
     tmp = deepcopy(psd)
-    for s in 0.4:0.2:1.6
+    for s in 0.1:0.2:1.6
         plot!(tmp, x -> nnmodel([x, s])[1]; label = "NN score function $s")
     end
+    gui()
 end
 
 
