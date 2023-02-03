@@ -31,7 +31,7 @@ import Distributions: logpdf, pdf
 import ForwardDiff
 using LinearAlgebra: tr, norm
 using LaTeXStrings
-using Random: seed!; seed!(0)
+using Random: shuffle, seed!; seed!(0)
 using StatsBase: mean, std
 using Optim: optimize, BFGS, Fminbox
 import Optim: minimizer
@@ -337,7 +337,7 @@ if !@isdefined(θesm)
     lower = [fill(0, nmix); fill(1.0, nmix); fill(-Inf, nmix-1)]
     upper = [fill(Inf, nmix); fill(Inf, nmix); fill(Inf, nmix-1)]
     opt_esm = optimize(cost_esm1, lower, upper, θ0, Fminbox(BFGS());
-     autodiff = :forward)
+        autodiff = :forward)
     ##opt_esm = optimize(cost_esm1, θ0, BFGS(); autodiff = :forward) # unconstrained
     θesm = minimizer(opt_esm)
 end;
@@ -511,7 +511,7 @@ function cost_rsm2(x::AbstractVector{<:Real}, θ, λ)
 end;
 
 # Minimize this RSM cost function:
-λ = 1e0
+λ = 4e-1
 cost_rsm1 = (θ) -> cost_rsm2(data, θ, λ)
 
 if !@isdefined(θrsm)
@@ -565,7 +565,7 @@ J_{\mathrm{DSM}}(\bm{θ}) =
 \mathbb{E}_{\bm{z} ∼ g_{σ}}\left[
 \frac{1}{2}
 \left\|
-\bm{s}(\bm{x} + \bm{z}; \bm{θ}) + \frac{\bm{z}}{σ^2}
+\bm{s}(\bm{x}_t + \bm{z}; \bm{θ}) + \frac{\bm{z}}{σ^2}
 \right\|_2^2
 \right].
 ```
@@ -587,7 +587,7 @@ J_{\mathrm{DSM}, \, M}(\bm{θ}) =
 \frac{1}{M} ∑_{m=1}^M
 \frac{1}{2}
 \left\|
-s(\bm{x} + \bm{z}_{t,m}; \bm{θ}) + \frac{\bm{z}_{t,m}}{σ^2}
+s(\bm{x}_t + \bm{z}_{t,m}; \bm{θ}) + \frac{\bm{z}_{t,m}}{σ^2}
 \right\|_2^2,
 ```
 where the noise samples
@@ -602,7 +602,7 @@ for somewhat arbitrary choices of ``M`` and ``σ``.
 seed!(0)
 M = 9
 σdsm = 1.0
-z = σdsm * randn(T, M);
+zdsm = σdsm * randn(T, M);
 
 #=
 Define denoising score-matching cost function,
@@ -616,7 +616,7 @@ function cost_dsm2(data::AbstractVector{<:Real}, z::AbstractArray{<:Real}, θ)
 end;
 
 if !@isdefined(θdsm)
-    cost_dsm1 = (θ) -> cost_dsm2(data, z, θ) # + β * 0.5 * norm(θ)^2;
+    cost_dsm1 = (θ) -> cost_dsm2(data, zdsm, θ) # + β * 0.5 * norm(θ)^2;
     opt_dsm = optimize(cost_dsm1, lower, upper, θ0, Fminbox(BFGS());
         autodiff = :forward)
     θdsm = minimizer(opt_dsm)
@@ -652,7 +652,7 @@ J_{\mathrm{DSM}}(\bm{θ}, σ) ≜
 \mathbb{E}_{\bm{z} ∼ g_{σ}}\left[
 \frac{1}{2}
 \left\|
-\bm{s}(\bm{x} + \bm{z}; \bm{θ}, σ) + \frac{\bm{z}}{σ^2}
+\bm{s}(\bm{x}_t + \bm{z}; \bm{θ}, σ) + \frac{\bm{z}}{σ^2}
 \right\|_2^2
 \right].
 ```
@@ -687,13 +687,14 @@ end;
 
 # Function to make data pairs suitable for NN training.
 # Each use of this function's output is akin to ``M`` epochs of `data`.
+# Use `shuffle` in case we use mini-batches later.
 function dsm_data(
     M::Int = 9,
     σdist = Uniform(0.2,2.0),
 )
     σdsm = Float32.(rand(σdist, T, M))
     z = σdsm .* randn(Float32, T, M)
-    tmp1 = data .+ z # (T,M)
+    tmp1 = shuffle(data) .+ z # (T,M)
     tmp2 = transpose([vec(tmp1) vec(σdsm)]) # (2, T*M)
     return (tmp2, -transpose(vec(z ./ σdsm.^2)))
 end
