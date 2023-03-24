@@ -40,6 +40,7 @@ using Flux: Chain, Dense, Adam
 #src import ReverseDiff
 import Plots
 using Plots: Plot, plot, plot!, scatter, histogram, quiver!, default, gui
+using Plots.PlotMeasures: px
 using InteractiveUtils: versioninfo
 default(label="", markerstrokecolor=:auto)
 
@@ -227,30 +228,53 @@ score_deriv(d::Distribution) = derivative(score(d)); # scalar x only
 # Generate training data
 if !@isdefined(data)
     T = 100
-    data_disn = :(Gamma(8, 1))
+    gamma_k = 8 # shape
+    gamma_θ = 1 # scale
+    gamma_mode = gamma_k > 1 ? (gamma_k - 1) * gamma_θ : 0
+    gamma_mean = gamma_k * gamma_θ
+    gamma_std = sqrt(gamma_k) * gamma_θ
+    data_disn = Expr(:call, :Gamma, gamma_k, gamma_θ)
     data_dis = eval(data_disn)
     data_score = derivative(logpdf(data_dis))
     data = Float32.(rand(data_dis, T))
     xlims = (-1, 25)
-    xticks = [0, floor(Int, minimum(data)), 8, ceil(Int, maximum(data))]
+    xticks = [0, floor(Int, minimum(data)), gamma_mode, gamma_mean, ceil(Int, maximum(data))]
     xticks = sort(xticks) # ticks that span the data range
 
     pfd = scatter(data, zeros(T); xlims, xticks, color=:black)
     plot!(pfd, pdf(data_dis); label="$data_disn pdf",
-        color = :black,
-        xlabel = L"x",
-        ylabel = L"p(x)",
-    )
+        color = :black, xlabel = L"x", ylabel = L"p(x)")
 
-    psd = plot(data_score; xlims=(1,20), label = "Data score function",
-        xticks, xlabel=L"x", color=:black, ylims = (-3, 5), yticks=[0,4])
+    psd = plot(data_score; color=:black, label = "$(data_disn.args[1]) score function",
+        xaxis=(L"x", (1,20), xticks), ylims = (-3, 5), yticks=[0,4])
+    psdn = deepcopy(psd)
     tmp = score(Normal(mean(data), std(data)))
-    plot!(psd, tmp; label = "Normal score function", line=:dash, color=:black)
+    plot!(psdn, tmp; label = "Normal score function", line=:dash, color=:black)
 
-    ph = histogram(data;
+    ph = histogram(data; linecolor=:blue,
+        xlabel=L"x", size=(600,300), yaxis=("count", (0,15), 0:5:15),
         bins=-1:0.5:25, xlims, xticks, label="data histogram")
+#   Plots.savefig(ph, "gamma-data.pdf")
     plot!(ph, x -> T*0.5 * pdf(data_dis)(x);
         color=:black, label="$data_disn Distribution")
+#   Plots.savefig(ph, "gamma-fit.pdf")
+end
+
+
+if false # plots for a talk
+    left_margin = 20px; bottom_margin = 10px
+    pdt = plot(pdf(data_dis); label="$data_disn pdf", color = :blue,
+        left_margin, bottom_margin,
+        xaxis = (L"x", xlims, xticks), ylabel = L"p(x)", size=(600,200))
+    pst = deepcopy(psd)
+    tmp = score(Normal(gamma_mean, gamma_std))
+    plot!(pst, tmp; label = "Normal score function", size=(600,200), xlims,
+        line=:dash, color=:magenta, left_margin, bottom_margin,
+        ylabel=L"s(x) = \frac{\mathrm{d}}{\mathrm{d}x} \, \log \ p(x)")
+
+    ## Plots.savefig(pdt, "gamma-pdf.pdf")
+    ## Plots.savefig(pst, "gamma-score.pdf")
+    ## prompt(); throw()
 end
 
 
@@ -261,7 +285,7 @@ the following mapping from ``\mathbb{R}^{D-1}``
 to the ``D``-dimensional simplex is helpful.
 It is the inverse of the
 [additive logratio transform](https://en.wikipedia.org/wiki/Compositional_data#Additive_logratio_transform).
-(It is related to the
+It is related to the
 [softmax function](https://en.wikipedia.org/wiki/Softmax_function).
 =#
 
