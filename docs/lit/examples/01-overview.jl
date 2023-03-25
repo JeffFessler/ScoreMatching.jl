@@ -3,20 +3,9 @@
 
 This page introduces the Julia package
 [`ScoreMatching`](https://github.com/JeffFessler/ScoreMatching.jl).
-
-This page was generated from a single Julia file:
-[01-overview.jl](@__REPO_ROOT_URL__/01-overview.jl).
 =#
 
-#md # In any such Julia documentation,
-#md # you can access the source code
-#md # using the "Edit on GitHub" link in the top right.
-
-#md # The corresponding notebook can be viewed in
-#md # [nbviewer](https://nbviewer.org/) here:
-#md # [`01-overview.ipynb`](@__NBVIEWER_ROOT_URL__/01-overview.ipynb),
-#md # and opened in [binder](https://mybinder.org/) here:
-#md # [`01-overview.ipynb`](@__BINDER_ROOT_URL__/01-overview.ipynb).
+#srcURL
 
 
 # ### Setup
@@ -811,10 +800,23 @@ if false # look at the set of NN score functions
 end
 
 
-# ### Reproducibility
+# Plots of data distribution with various added noise levels
 
-# This page was generated with the following version of Julia:
-io = IOBuffer(); versioninfo(io); split(String(take!(io)), '\n')
+σlist = [0.0005, 0.05, 0.1, 0.5, 1, 5]
+nσ = length(σlist)
+pl = Array{Any}(undef, nσ)
+for (i, σ) in enumerate(σlist)
+    local mix = MixtureModel(Normal, [(d,σ) for d in data])
+    xm = range(0, 20, step=min(σ/5, 0.1))
+    local tmp = pdf(mix).(xm)
+    pl[i] = plot(xm, tmp, xaxis=(L"x", (0, 20), [0, gamma_mean, 18]),
+        yaxis=(L"q_σ(x)", [0,]), title = "σ = $σ", color=:red)
+#   plot!(pl, xm, tmp / maximum(tmp), label = "σ = $σ")
+end
+plot(pl...)
 
-# And with the following package versions
-import Pkg; Pkg.status()
+## Plots.savefig("data-qsig.pdf")
+prompt()
+
+
+include("../../../inc/reproduce.jl")
