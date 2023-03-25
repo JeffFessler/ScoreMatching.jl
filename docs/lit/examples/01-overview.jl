@@ -205,14 +205,12 @@ calls this approach
 _explicit score matching_ (ESM).
 
 
-## Illustration
+## 1D example
 
-For didactic purposes,
-we illustrate explicit score matching
-by fitting samples from a
-[Gamma distribution](https://en.wikipedia.org/wiki/Gamma_distribution)
-to a mixture of gaussians.
-
+We begin by illustrating the score function
+for a simple
+``\mathcal{N}(8, 3)``
+distribution.
 =#
 
 # Some convenience methods
@@ -223,6 +221,66 @@ gradient(f::Function) = x -> ForwardDiff.gradient(f, x)
 ## hessian(f::Function) = x -> ForwardDiff.hessian(f, x)
 score(d::Distribution) = derivative(logpdf(d))
 score_deriv(d::Distribution) = derivative(score(d)); # scalar x only
+
+gauss_μ = 8
+gauss_σ = 3
+gauss_disn = Expr(:call, :Normal, gauss_μ, gauss_σ)
+gauss_dist = eval(gauss_disn)
+xaxis = (L"x", (-1,1).*5gauss_σ .+ gauss_μ, (-3:3)*gauss_σ .+ gauss_μ)
+left_margin = 20px; bottom_margin = 10px
+pgp = plot(pdf(gauss_dist); label="$gauss_disn pdf", color = :blue,
+    left_margin, bottom_margin,
+    xaxis, yaxis = (L"p(x)", (0, 0.15), (0:3)*0.05), size=(600,200),
+)
+
+## Plots.savefig(pgp, "gauss-pdf.pdf")
+prompt()
+
+ylabel_score1 = L"s(x) = \frac{\mathrm{d}}{\mathrm{d}x} \, \log \ p(x)"
+pgs = plot(derivative(logpdf(gauss_dist)); color=:red, xaxis, size=(600,200),
+    label = "$gauss_disn score function",
+    yaxis = (ylabel_score1, (-2,2), -3:3), left_margin, bottom_margin,
+)
+
+## Plots.savefig(pgs, "gauss-score.pdf")
+prompt()
+
+#src plot(pgp, pgs, layout=(2,1))
+
+
+# Same plots for a gaussian mixture model (GMM)
+mix = MixtureModel(Normal, [(2,1), (8,3), (16,2)], [0.3, 0.4, 0.3])
+mix = MixtureModel(Normal, [(3,1), (13,3)], [0.4, 0.6])
+xaxis = (L"x", (-4,24), [0, 3, 13, 20])
+pmp = plot(pdf(mix); label="Gaussian mixture pdf", color = :blue,
+    left_margin, bottom_margin, xaxis, size=(600,200),
+    yaxis = (L"p(x)", (0, 0.17), (0:3)*0.05),
+)
+
+## Plots.savefig(pmp, "mix-pdf.pdf")
+prompt()
+
+pms = plot(derivative(logpdf(mix)); color=:red, xaxis, size=(600,200),
+    label = "GMM score function",
+    yaxis = (ylabel_score1, (-5,5), -4:2:4), left_margin, bottom_margin,
+)
+
+## Plots.savefig(pms, "mix-score.pdf")
+prompt()
+
+#src plot(pmp, pms)
+
+
+#=
+## Illustration
+
+For didactic purposes,
+we illustrate explicit score matching (ESM)
+by fitting samples from a
+[Gamma distribution](https://en.wikipedia.org/wiki/Gamma_distribution)
+to a mixture of gaussians.
+
+=#
 
 
 # Generate training data
@@ -262,7 +320,6 @@ end
 
 
 if false # plots for a talk
-    left_margin = 20px; bottom_margin = 10px
     pdt = plot(pdf(data_dis); label="$data_disn pdf", color = :blue,
         left_margin, bottom_margin,
         xaxis = (L"x", xlims, xticks), ylabel = L"p(x)", size=(600,200))
@@ -270,7 +327,7 @@ if false # plots for a talk
     tmp = score(Normal(gamma_mean, gamma_std))
     plot!(pst, tmp; label = "Normal score function", size=(600,200), xlims,
         line=:dash, color=:magenta, left_margin, bottom_margin,
-        ylabel=L"s(x) = \frac{\mathrm{d}}{\mathrm{d}x} \, \log \ p(x)")
+        ylabel=ylabel_score1)
 
     ## Plots.savefig(pdt, "gamma-pdf.pdf")
     ## Plots.savefig(pst, "gamma-score.pdf")
