@@ -19,6 +19,7 @@ import Distributions: logpdf, pdf
 import ForwardDiff # derivative, gradient
 #src using LinearAlgebra: tr, norm
 using LaTeXStrings
+using Printf: @sprintf
 using Random: shuffle, seed!; seed!(0)
 using StatsBase: mean, std
 #src using Optim: optimize, BFGS, Fminbox
@@ -27,7 +28,8 @@ using StatsBase: mean, std
 #src using Flux: Chain, Dense, Adam
 #src import ReverseDiff
 #src import Plots
-using Plots: Plot, plot, plot!, scatter, histogram, quiver!, default, gui, savefig
+using Plots: Plot, plot, plot!, scatter, scatter!, histogram, quiver!
+using Plots: default, gui, savefig
 using Plots.PlotMeasures: px
 default(label="", markerstrokecolor=:auto,
  labelfontsize = 14, tickfontsize = 12, legendfontsize = 14,
@@ -168,10 +170,10 @@ function sampler( ;
 end
 
 if !@isdefined(xrun) || true
-end
     T = 600
     ntrial = 5000
     xrun = sampler(; T, ntrial)
+end
 
 ntrace = 50
 psl = plot(xrun[1:ntrace,:]', xlabel="Iteration (t)",
@@ -182,18 +184,37 @@ psl = plot(xrun[1:ntrace,:]', xlabel="Iteration (t)",
 ## savefig(psl, "gmm-prior-trace-$ntrace.pdf")
 
 
-it = T
-ph = histogram(xrun[:,it]; bins=-12:0.5:36, xaxis,
- label="$ntrial generated samples", normalize=true,
- yaxis = (L"p(x)", (0, 0.17), 0:0.1:0.2),
- annotate = (-3, 0.14, "t = $it", :left),
-)
-plot!(ph,
-#x -> ntrial*0.5 * pdf(mix)(x);
- x -> pdf(mix)(x);
-  linewidth=3, color=:black, label="GMM Distribution",
-)
+ph = nothing
+for it in (T,) # [1:10; 20:10:100; 200:100:T]
+    global ph = histogram(xrun[:,it];
+     bins = -12:0.5:36, xaxis,
+     label = "$ntrial generated samples", normalize = true,
+     yaxis = (L"p(x)", (0, 0.17), 0:0.1:0.2),
+     annotate = (-3, 0.14, "t = $it", :left),
+    )
+    plot!(ph, x -> pdf(mix)(x);
+      linewidth=3, color=:black, label="GMM Distribution",
+    )
+    tmp = @sprintf("%03d", it)
+    ## savefig(ph, "gmm-prior-sample-$ntrial,$tmp.pdf")
+end
+ph
+
 ## savefig(ph, "gmm-prior-sample-$ntrial.pdf")
+
+
+# Kernel density estimate and its score function
+ntrain = 100
+train_data = rand(mix, ntrain)
+gsig = 0.9
+
+kde = MixtureModel(Normal, [(x, gsig) for x in train_data])
+pkd = plot(pdf(kde); xaxis, label="KDE σ=$gsig")
+scatter!(train_data, zeros(ntrain), label="data")
+
+psk = plot(score(kde); xaxis)
+plot!(score(mix))
+
 #=
 =#
 
