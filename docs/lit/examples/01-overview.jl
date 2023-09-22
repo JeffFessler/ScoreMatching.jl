@@ -292,8 +292,10 @@ if !@isdefined(data)
     plot!(pfd, pdf(data_dis); label="$data_disn pdf",
         color = :black, xlabel = L"x", ylabel = L"p(x)")
 
-    psd = plot(data_score; color=:black, label = "$(data_disn.args[1]) score function",
-        xaxis=(L"x", (1,20), xticks), ylims = (-3, 5), yticks=[0,4])
+    psd = plot(data_score; color=:black,
+        label = "$(data_disn.args[1]) score function",
+        xaxis=(L"x", (1,20), xticks), ylims = (-3, 5), yticks=[0,4],
+    )
     psdn = deepcopy(psd)
     tmp = score(Normal(mean(data), std(data)))
     plot!(psdn, tmp; label = "Normal score function", line=:dash, color=:black)
@@ -301,10 +303,10 @@ if !@isdefined(data)
     ph = histogram(data; linecolor=:blue,
         xlabel=L"x", size=(600,300), yaxis=("count", (0,15), 0:5:15),
         bins=-1:0.5:25, xlims, xticks, label="data histogram")
-#   Plots.savefig(ph, "gamma-data.pdf")
+    ## Plots.savefig(ph, "gamma-data.pdf")
     plot!(ph, x -> T*0.5 * pdf(data_dis)(x);
         color=:black, label="$data_disn Distribution")
-#   Plots.savefig(ph, "gamma-fit.pdf")
+    ## Plots.savefig(ph, "gamma-fit.pdf")
 end
 
 
@@ -320,7 +322,6 @@ if false # plots for a talk
 
     ## Plots.savefig(pdt, "gamma-pdf.pdf")
     ## Plots.savefig(pst, "gamma-score.pdf")
-    ## prompt(); throw()
 end
 
 
@@ -408,7 +409,7 @@ if !@isdefined(θesm)
     upper = [fill(Inf, nmix); fill(Inf, nmix); fill(Inf, nmix-1)]
     opt_esm = optimize(cost_esm1, lower, upper, θ0, Fminbox(BFGS());
         autodiff = :forward)
-    ##opt_esm = optimize(cost_esm1, θ0, BFGS(); autodiff = :forward) # unconstrained
+    ## opt_esm = optimize(cost_esm1, θ0, BFGS(); autodiff = :forward) # unconstrained
     θesm = minimizer(opt_esm)
 end;
 
@@ -599,6 +600,7 @@ pfs = plot(pf, ps)
 #
 prompt()
 
+
 #=
 Sadly the regularized score matching (RSM) approach did not help much here.
 Increasing ``λ`` led to `optimize` errors.
@@ -781,6 +783,7 @@ if !@isdefined(nnmodel)
     state1 = Flux.setup(Adam(), nnmodel)
     @info "begin train"
     @time Flux.train!(loss3, nnmodel, dataset, state1)
+    @info "end train"
 end
 
 nnscore = x -> nnmodel([x, 0.4])[1] # lower end of σdist range
@@ -807,11 +810,13 @@ nσ = length(σlist)
 pl = Array{Any}(undef, nσ)
 for (i, σ) in enumerate(σlist)
     local mix = MixtureModel(Normal, [(d,σ) for d in data])
-    xm = range(0, 20, step=min(σ/5, 0.1))
+    xm = range(0, 20, step = min(σ/5, 0.1))
     local tmp = pdf(mix).(xm)
-    pl[i] = plot(xm, tmp, xaxis=(L"x", (0, 20), [0, gamma_mean, 18]),
-        yaxis=(L"q_σ(x)", [0,]), title = "σ = $σ", color=:red)
-#   plot!(pl, xm, tmp / maximum(tmp), label = "σ = $σ")
+    pl[i] = plot(xm, tmp; color = :red,
+        xaxis = (L"x", (0, 20), [0, gamma_mean, 18]),
+        yaxis = (L"q_σ(x)", [0,]), title = "σ = $σ",
+    )
+    ## plot!(pl, xm, tmp / maximum(tmp), label = "σ = $σ")
 end
 plot(pl...)
 
