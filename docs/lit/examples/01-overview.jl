@@ -3,20 +3,9 @@
 
 This page introduces the Julia package
 [`ScoreMatching`](https://github.com/JeffFessler/ScoreMatching.jl).
-
-This page was generated from a single Julia file:
-[01-overview.jl](@__REPO_ROOT_URL__/01-overview.jl).
 =#
 
-#md # In any such Julia documentation,
-#md # you can access the source code
-#md # using the "Edit on GitHub" link in the top right.
-
-#md # The corresponding notebook can be viewed in
-#md # [nbviewer](https://nbviewer.org/) here:
-#md # [`01-overview.ipynb`](@__NBVIEWER_ROOT_URL__/01-overview.ipynb),
-#md # and opened in [binder](https://mybinder.org/) here:
-#md # [`01-overview.ipynb`](@__BINDER_ROOT_URL__/01-overview.ipynb).
+#srcURL
 
 
 # ### Setup
@@ -40,6 +29,7 @@ using Flux: Chain, Dense, Adam
 #src import ReverseDiff
 import Plots
 using Plots: Plot, plot, plot!, scatter, histogram, quiver!, default, gui
+using Plots.PlotMeasures: px
 using InteractiveUtils: versioninfo
 default(label="", markerstrokecolor=:auto)
 
@@ -204,14 +194,12 @@ calls this approach
 _explicit score matching_ (ESM).
 
 
-## Illustration
+## 1D example
 
-For didactic purposes,
-we illustrate explicit score matching
-by fitting samples from a
-[Gamma distribution](https://en.wikipedia.org/wiki/Gamma_distribution)
-to a mixture of gaussians.
-
+We begin by illustrating the score function
+for a simple
+``\mathcal{N}(8, 3)``
+distribution.
 =#
 
 # Some convenience methods
@@ -223,34 +211,117 @@ gradient(f::Function) = x -> ForwardDiff.gradient(f, x)
 score(d::Distribution) = derivative(logpdf(d))
 score_deriv(d::Distribution) = derivative(score(d)); # scalar x only
 
+gauss_μ = 8
+gauss_σ = 3
+gauss_disn = Expr(:call, :Normal, gauss_μ, gauss_σ)
+gauss_dist = eval(gauss_disn)
+xaxis = (L"x", (-1,1).*5gauss_σ .+ gauss_μ, (-3:3)*gauss_σ .+ gauss_μ)
+left_margin = 20px; bottom_margin = 10px
+pgp = plot(pdf(gauss_dist); label="$gauss_disn pdf", color = :blue,
+    left_margin, bottom_margin,
+    xaxis, yaxis = (L"p(x)", (0, 0.15), (0:3)*0.05), size=(600,200),
+)
+
+## Plots.savefig(pgp, "gauss-pdf.pdf")
+prompt()
+
+ylabel_score1 = L"s(x) = \frac{\mathrm{d}}{\mathrm{d}x} \, \log \ p(x)"
+pgs = plot(derivative(logpdf(gauss_dist)); color=:red, xaxis, size=(600,200),
+    label = "$gauss_disn score function",
+    yaxis = (ylabel_score1, (-2,2), -3:3), left_margin, bottom_margin,
+)
+
+## Plots.savefig(pgs, "gauss-score.pdf")
+prompt()
+
+#src plot(pgp, pgs, layout=(2,1))
+
+
+# Same plots for a gaussian mixture model (GMM)
+mix = MixtureModel(Normal, [(2,1), (8,3), (16,2)], [0.3, 0.4, 0.3])
+mix = MixtureModel(Normal, [(3,1), (13,3)], [0.4, 0.6])
+xaxis = (L"x", (-4,24), [0, 3, 13, 20])
+pmp = plot(pdf(mix); label="Gaussian mixture pdf", color = :blue,
+    left_margin, bottom_margin, xaxis, size=(600,200),
+    yaxis = (L"p(x)", (0, 0.17), (0:3)*0.05),
+)
+
+## Plots.savefig(pmp, "mix-pdf.pdf")
+prompt()
+
+pms = plot(derivative(logpdf(mix)); color=:red, xaxis, size=(600,200),
+    label = "GMM score function",
+    yaxis = (ylabel_score1, (-5,5), -4:2:4), left_margin, bottom_margin,
+)
+
+## Plots.savefig(pms, "mix-score.pdf")
+prompt()
+
+#src plot(pmp, pms)
+
+
+#=
+## Illustration
+
+For didactic purposes,
+we illustrate explicit score matching (ESM)
+by fitting samples from a
+[Gamma distribution](https://en.wikipedia.org/wiki/Gamma_distribution)
+to a mixture of gaussians.
+
+=#
+
 
 # Generate training data
 if !@isdefined(data)
     T = 100
-    data_disn = :(Gamma(8, 1))
+    gamma_k = 8 # shape
+    gamma_θ = 1 # scale
+    gamma_mode = gamma_k > 1 ? (gamma_k - 1) * gamma_θ : 0
+    gamma_mean = gamma_k * gamma_θ
+    gamma_std = sqrt(gamma_k) * gamma_θ
+    data_disn = Expr(:call, :Gamma, gamma_k, gamma_θ)
     data_dis = eval(data_disn)
     data_score = derivative(logpdf(data_dis))
     data = Float32.(rand(data_dis, T))
     xlims = (-1, 25)
-    xticks = [0, floor(Int, minimum(data)), 8, ceil(Int, maximum(data))]
+    xticks = [0, floor(Int, minimum(data)), gamma_mode, gamma_mean, ceil(Int, maximum(data))]
     xticks = sort(xticks) # ticks that span the data range
 
     pfd = scatter(data, zeros(T); xlims, xticks, color=:black)
     plot!(pfd, pdf(data_dis); label="$data_disn pdf",
-        color = :black,
-        xlabel = L"x",
-        ylabel = L"p(x)",
+        color = :black, xlabel = L"x", ylabel = L"p(x)")
+
+    psd = plot(data_score; color=:black,
+        label = "$(data_disn.args[1]) score function",
+        xaxis=(L"x", (1,20), xticks), ylims = (-3, 5), yticks=[0,4],
     )
-
-    psd = plot(data_score; xlims=(1,20), label = "Data score function",
-        xticks, xlabel=L"x", color=:black, ylims = (-3, 5), yticks=[0,4])
+    psdn = deepcopy(psd)
     tmp = score(Normal(mean(data), std(data)))
-    plot!(psd, tmp; label = "Normal score function", line=:dash, color=:black)
+    plot!(psdn, tmp; label = "Normal score function", line=:dash, color=:black)
 
-    ph = histogram(data;
+    ph = histogram(data; linecolor=:blue,
+        xlabel=L"x", size=(600,300), yaxis=("count", (0,15), 0:5:15),
         bins=-1:0.5:25, xlims, xticks, label="data histogram")
+    ## Plots.savefig(ph, "gamma-data.pdf")
     plot!(ph, x -> T*0.5 * pdf(data_dis)(x);
         color=:black, label="$data_disn Distribution")
+    ## Plots.savefig(ph, "gamma-fit.pdf")
+end
+
+
+if false # plots for a talk
+    pdt = plot(pdf(data_dis); label="$data_disn pdf", color = :blue,
+        left_margin, bottom_margin,
+        xaxis = (L"x", xlims, xticks), ylabel = L"p(x)", size=(600,200))
+    pst = deepcopy(psd)
+    tmp = score(Normal(gamma_mean, gamma_std))
+    plot!(pst, tmp; label = "Normal score function", size=(600,200), xlims,
+        line=:dash, color=:magenta, left_margin, bottom_margin,
+        ylabel=ylabel_score1)
+
+    ## Plots.savefig(pdt, "gamma-pdf.pdf")
+    ## Plots.savefig(pst, "gamma-score.pdf")
 end
 
 
@@ -261,7 +332,7 @@ the following mapping from ``\mathbb{R}^{D-1}``
 to the ``D``-dimensional simplex is helpful.
 It is the inverse of the
 [additive logratio transform](https://en.wikipedia.org/wiki/Compositional_data#Additive_logratio_transform).
-(It is related to the
+It is related to the
 [softmax function](https://en.wikipedia.org/wiki/Softmax_function).
 =#
 
@@ -338,7 +409,7 @@ if !@isdefined(θesm)
     upper = [fill(Inf, nmix); fill(Inf, nmix); fill(Inf, nmix-1)]
     opt_esm = optimize(cost_esm1, lower, upper, θ0, Fminbox(BFGS());
         autodiff = :forward)
-    ##opt_esm = optimize(cost_esm1, θ0, BFGS(); autodiff = :forward) # unconstrained
+    ## opt_esm = optimize(cost_esm1, θ0, BFGS(); autodiff = :forward) # unconstrained
     θesm = minimizer(opt_esm)
 end;
 
@@ -529,6 +600,7 @@ pfs = plot(pf, ps)
 #
 prompt()
 
+
 #=
 Sadly the regularized score matching (RSM) approach did not help much here.
 Increasing ``λ`` led to `optimize` errors.
@@ -711,6 +783,7 @@ if !@isdefined(nnmodel)
     state1 = Flux.setup(Adam(), nnmodel)
     @info "begin train"
     @time Flux.train!(loss3, nnmodel, dataset, state1)
+    @info "end train"
 end
 
 nnscore = x -> nnmodel([x, 0.4])[1] # lower end of σdist range
@@ -730,10 +803,25 @@ if false # look at the set of NN score functions
 end
 
 
-# ### Reproducibility
+# Plots of data distribution with various added noise levels
 
-# This page was generated with the following version of Julia:
-io = IOBuffer(); versioninfo(io); split(String(take!(io)), '\n')
+σlist = [0.0005, 0.05, 0.1, 0.5, 1, 5]
+nσ = length(σlist)
+pl = Array{Any}(undef, nσ)
+for (i, σ) in enumerate(σlist)
+    local mix = MixtureModel(Normal, [(d,σ) for d in data])
+    xm = range(0, 20, step = min(σ/5, 0.1))
+    local tmp = pdf(mix).(xm)
+    pl[i] = plot(xm, tmp; color = :red,
+        xaxis = (L"x", (0, 20), [0, gamma_mean, 18]),
+        yaxis = (L"q_σ(x)", [0,]), title = "σ = $σ",
+    )
+    ## plot!(pl, xm, tmp / maximum(tmp), label = "σ = $σ")
+end
+plot(pl...)
 
-# And with the following package versions
-import Pkg; Pkg.status()
+## Plots.savefig("data-qsig.pdf")
+prompt()
+
+
+include("../../../inc/reproduce.jl")
