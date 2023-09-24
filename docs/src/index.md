@@ -16,7 +16,7 @@ to training data.
 
 Here, "score" means
 the gradient of a log-likelihood
-``\nabla_{\mathbf{x} \log p(\mathbf{x}; \mathbf{\theta})``
+``\nabla_{\mathbf{x}} \log p(\mathbf{x}; \mathbf{\theta})``
 as defined 
 by
 [Hyvärinen 2005](http://jmlr.org/papers/v6/hyvarinen05a.html).
