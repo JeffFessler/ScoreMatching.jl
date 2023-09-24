@@ -21,6 +21,8 @@ using Printf: @sprintf
 using Random: shuffle, seed!; seed!(0)
 using StatsBase: mean, std
 using Plots: Plot, plot, plot!, scatter, scatter!, histogram, quiver!
+using Plots: @animate, gif
+import Plots # Animation
 using Plots: default, gui, savefig
 using Plots.PlotMeasures: px
 default(label="", markerstrokecolor=:auto, linewidth=2,
@@ -47,62 +49,11 @@ to draw samples from
 ``p(\bm{x}; \bm{θ}).``
 =#
 
-#=
-function do_quiver!(p::Plot, x, y, dx, dy; thresh=0.02, scale=0.15)
-    tmp = d -> maximum(abs, filter(!isnan, d))
-    dmax = max(tmp(dx), tmp(dy))
-    ix = 5:11:length(x)
-    iy = 5:11:length(y)
-    x, y = x .+ 0*y', 0*x .+ y'
-    x = x[ix,iy]
-    y = y[ix,iy]
-    dx = dx[ix,iy] / dmax * scale
-    dy = dy[ix,iy] / dmax * scale
-    good = @. (abs(dx) > thresh) | (abs(dy) > thresh)
-    x = x[good]
-    y = y[good]
-    dx = dx[good]
-    dy = dy[good]
-    Plots.arrow(:open, :head, 0.001, 0.001)
-    return quiver!(p, x, y, quiver=(dx,dy);
-        aspect_ratio = 1,
-        title = "TV score quiver",
-        color = :red,
-    )
-end;
-
-if !@isdefined(ptv)
-    α = 1.01 # fairly close to TV
-    β = 1
-    x1 = range(-1, 1, 101) * 2
-    x2 = range(-1, 1, 101) * 2
-    tv_pdf2 = @. exp(-β * abs(x2' - x1)^α) # ignoring partition constant
-    ptv0 = jim(x1, x2, tv_pdf2; title = "'TV' pdf", clim = (0, 1),
-        color=:cividis, xlabel = L"x_1", ylabel = L"x_2", prompt=false,
-    )
-    tv_score1 = @. β * abs(x2' - x1)^(α-1) * sign(x2' - x1)
-    ptv1 = jim(x1, x2, tv_score1; title = "TV score₁", prompt=false,
-        color=:cividis, xlabel = L"x_1", ylabel = L"x_2", clim = (-1,1) .* 1.2,
-    )
-    tv_score2 = @. -β * abs(x2' - x1)^(α-1) * sign(x2' - x1)
-    ptv2 = jim(x1, x2, tv_score2; title = "TV score₂", prompt=false,
-        color=:cividis, xlabel = L"x_1", ylabel = L"x_2", clim = (-1,1) .* 1.2,
-    )
-    ptvq = do_quiver!(deepcopy(ptv0), x1, x2, tv_score1, tv_score2)
-    ptv = plot(ptv0, ptv1, ptvq, ptv2)
-    ## Plots.savefig("score-tv.pdf")
-end
-
-
-#
-prompt()
-=#
-
 
 #=
 ## Illustration
 
-a mixture of gaussians.
+Sampling from a gaussian mixture distribution.
 
 =#
 
@@ -134,6 +85,10 @@ ps1 = plot(score1; xaxis, color=:magenta,
 )
 
 pps = plot(pmp, ps1, layout=(2,1))
+
+#
+prompt()
+
 
 function sampler( ;
     score::Function = score1,
@@ -179,21 +134,30 @@ prompt()
 ## savefig(psl, "gmm-prior-trace-$ntrace.pdf")
 
 
-ph = nothing
-for it in (T,) # [1:10; 20:10:100; 200:100:T]
-    global ph = histogram(xrun[:,it];
-     bins = -12:0.5:36, xaxis,
-     label = "$ntrial generated samples", normalize = true,
-     yaxis = (L"p(x)", (0, 0.17), 0:0.1:0.2),
-     annotate = (-3, 0.14, "t = $it", :left),
+function gmm_hist(it::Int)
+    ph = histogram(xrun[:,it];
+        bins = -12:0.5:36, xaxis,
+        label = "$ntrial generated samples", normalize = true,
+        yaxis = (L"p(x)", (0, 0.17), 0:0.1:0.2),
+        annotate = (-3, 0.14, "t = $it", :left),
     )
     plot!(ph, x -> pdf(mix)(x);
-      linewidth=3, color=:black, label="GMM Distribution",
+         linewidth=3, color=:black, label="GMM Distribution",
     )
-    tmp = @sprintf("%03d", it)
-    ## savefig(ph, "gmm-prior-sample-$ntrial,$tmp.pdf")
+    return ph
 end
-ph
+
+# Animate sampling process over time
+if isinteractive()
+    ph = gmm_hist(T)
+else
+    anim = @animate for it in [1:10; 20:10:100; 200:100:T]
+        ph = gmm_hist(it)
+    ## tmp = @sprintf("%03d", it)
+    ## savefig(ph, "gmm-prior-sample-$ntrial,$tmp.pdf")
+    end
+    gif(anim, "gmm-hist.gif", fps = 6)
+end
 
 #
 prompt()
@@ -222,7 +186,3 @@ prompt()
 ## savefig(pks, "gmm-kde-score-$ntrain.pdf")
 
 ## plot(pkd, pks; layout=(2,1))
-
-#=
-gui(); throw()
-=#
