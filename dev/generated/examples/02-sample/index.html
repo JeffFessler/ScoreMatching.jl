@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Sampling · ScoreMatching.jl</title><meta name="title" content="Sampling · ScoreMatching.jl"/><meta property="og:title" content="Sampling · ScoreMatching.jl"/><meta property="twitter:title" content="Sampling · ScoreMatching.jl"/><meta name="description" content="Documentation for ScoreMatching.jl."/><meta property="og:description" content="Documentation for ScoreMatching.jl."/><meta property="twitter:description" content="Documentation for ScoreMatching.jl."/><meta property="og:url" content="https://JeffFessler.github.io/ScoreMatching.jl/stable/generated/examples/02-sample/"/><meta property="twitter:url" content="https://JeffFessler.github.io/ScoreMatching.jl/stable/generated/examples/02-sample/"/><link rel="canonical" href="https://JeffFessler.github.io/ScoreMatching.jl/stable/generated/examples/02-sample/"/><script data-outdated-warner src="../../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../../assets/documenter.js"></script><script src="../../../search_index.js"></script><script src="../../../siteinfo.js"></script><script src="../../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../../assets/themeswap.js"></script><link href="../../../assets/custom.css" rel="stylesheet" type="text/css"/></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../../">ScoreMatching.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../../">Home</a></li><li><a class="tocitem" href="../../../methods/">Methods</a></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../01-overview/">Score Matching overview</a></li><li class="is-active"><a class="tocitem" href>Sampling</a><ul class="internal"><li><a class="tocitem" href="#Overview"><span>Overview</span></a></li><li><a class="tocitem" href="#Illustration"><span>Illustration</span></a></li></ul></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Sampling</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Sampling</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/JeffFessler/ScoreMatching.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/JeffFessler/ScoreMatching.jl/blob/main/docs/lit/examples/02-sample.jl" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="02-sample"><a class="docs-heading-anchor" href="#02-sample">Sampling</a><a id="02-sample-1"></a><a class="docs-heading-anchor-permalink" href="#02-sample" title="Permalink"></a></h1><p>WIP on sampling using a score model.</p><p>This page comes from a single Julia file: <a href="https://github.com/JeffFessler/ScoreMatching.jl/blob/main/docs/lit/examples/02-sample.jl"><code>02-sample.jl</code></a>.</p><p>You can access the source code for such Julia documentation using the &#39;Edit on GitHub&#39; link in the top right. You can view the corresponding notebook in <a href="https://nbviewer.org/">nbviewer</a> here: <a href="https://nbviewer.org/github/JeffFessler/ScoreMatching.jl/tree/gh-pages/dev/generated/examples/02-sample.ipynb"><code>02-sample.ipynb</code></a>, or open it in <a href="https://mybinder.org/">binder</a> here: <a href="https://mybinder.org/v2/gh/JeffFessler/ScoreMatching.jl/gh-pages?filepath=dev/generated/examples/02-sample.ipynb"><code>02-sample.ipynb</code></a>.</p><h3 id="Setup"><a class="docs-heading-anchor" href="#Setup">Setup</a><a id="Setup-1"></a><a class="docs-heading-anchor-permalink" href="#Setup" title="Permalink"></a></h3><p>Packages needed here.</p><pre><code class="language-julia hljs">using MIRTjim: jim, prompt
+using Distributions: Distribution, Normal, MixtureModel, logpdf, pdf
+import Distributions # var, mean
+import Distributions: logpdf, pdf
+import ForwardDiff # derivative, gradient
+using LaTeXStrings
+using Printf: @sprintf
+using Random: shuffle, seed!; seed!(0)
+using StatsBase: mean, std
+using Plots: Plot, plot, plot!, scatter, scatter!, histogram, quiver!
+using Plots: @animate, gif
+import Plots # Animation
+using Plots: default, gui, savefig
+using Plots.PlotMeasures: px
+default(label=&quot;&quot;, markerstrokecolor=:auto, linewidth=2,
+ labelfontsize = 14, tickfontsize = 12, legendfontsize = 14,
+)</code></pre><p>The following line is helpful when running this file as a script; this way it will prompt user to hit a key after each figure is displayed.</p><pre><code class="language-julia hljs">isinteractive() ? jim(:prompt, true) : prompt(:prompt);</code></pre><h2 id="Overview"><a class="docs-heading-anchor" href="#Overview">Overview</a><a id="Overview-1"></a><a class="docs-heading-anchor-permalink" href="#Overview" title="Permalink"></a></h2><p>Given a score function <span>$\bm{s}(\bm{x}; \bm{θ}) = \nabla_{\bm{x}} \log p(\bm{x}; \bm{θ}),$</span> one can use Langevin dynamics to draw samples from <span>$p(\bm{x}; \bm{θ}).$</span></p><h2 id="Illustration"><a class="docs-heading-anchor" href="#Illustration">Illustration</a><a id="Illustration-1"></a><a class="docs-heading-anchor-permalink" href="#Illustration" title="Permalink"></a></h2><p>Sampling from a gaussian mixture distribution.</p><p>Some convenience methods</p><pre><code class="language-julia hljs">logpdf(d::Distribution) = x -&gt; logpdf(d, x)
+pdf(d::Distribution) = x -&gt; pdf(d, x)
+derivative(f::Function) = x -&gt; ForwardDiff.derivative(f, x)
+gradient(f::Function) = x -&gt; ForwardDiff.gradient(f, x)
+# hessian(f::Function) = x -&gt; ForwardDiff.hessian(f, x)
+score(d::Distribution) = derivative(logpdf(d))
+score_deriv(d::Distribution) = derivative(score(d)); # scalar x only
+
+
+mix = MixtureModel(Normal, [(3,1), (13,3)], [0.4, 0.6])
+
+left_margin = 20px; bottom_margin = 10px
+xaxis = (L&quot;x&quot;, (-4,24), [0, 3, 13, 20])
+pmp = plot(pdf(mix); label=&quot;Gaussian mixture pdf&quot;, color = :blue,
+ left_margin, bottom_margin, xaxis, size=(600,300),
+ yaxis = (L&quot;p(x)&quot;, (0, 0.17), (0:3)*0.05),
+)
+
+score1 = score(mix)
+
+ylabel_score1 = L&quot;s(x) = \frac{\mathrm{d}}{\mathrm{d}x} \, \log \ p(x)&quot;
+ps1 = plot(score1; xaxis, color=:magenta,
+ size=(600,300), label = &quot;GMM score function&quot;,
+ yaxis = (ylabel_score1, (-5,5), -4:2:4), left_margin, bottom_margin,
+)
+
+pps = plot(pmp, ps1, layout=(2,1))</code></pre><img src="15cc1f56.svg" alt="Example block output"/><pre><code class="language-julia hljs">prompt()
+
+
+function sampler( ;
+    score::Function = score1,
+    T::Int = 600,
+    α0::Real = 1,
+    p0::Real = 0.99,
+    alpha::AbstractVector = (@. α0 * (p0 ^ (1:T))^2),
+    ntrial::Int = 1000, # for ph
+    beta::Real = 1,
+    seed::Int = 0,
+    init_mean::Real = Distributions.mean(mix), # todo: cheating?
+    init_std::Real = sqrt(Distributions.var(mix)),
+)
+
+    seed!(seed)
+    xrun = Matrix{Float32}(undef, ntrial, T+1)
+    xrun[:,1] = init_mean .+ init_std * randn(ntrial)
+
+    for it in 1:T
+        old = xrun[:,it]
+        αt = alpha[it]
+        xrun[:,it+1] = old + αt * score.(old) + sqrt(2*beta*αt) * randn(ntrial)
+    end
+    return xrun
+end;
+
+
+if !@isdefined(xrun) || true
+    T = 600
+    ntrial = 5000
+    xrun = sampler(; T, ntrial)
+end;
+
+ntrace = 50
+psl = plot(xrun[1:ntrace,:]&#39;, xlabel=&quot;Iteration (t)&quot;,
+ xticks = 0:100:T,
+ yaxis = (L&quot;x_t&quot;, (-4,26), [0, 3, 13, 20]),
+ annotate = (T, -2, &quot;$ntrace generated samples&quot;, :right),
+)</code></pre><img src="565aca2b.svg" alt="Example block output"/><pre><code class="language-julia hljs">prompt()
+# savefig(psl, &quot;gmm-prior-trace-$ntrace.pdf&quot;)
+
+
+function gmm_hist(it::Int)
+    ph = histogram(xrun[:,it];
+        bins = -12:0.5:36, xaxis,
+        label = &quot;$ntrial generated samples&quot;, normalize = true,
+        yaxis = (L&quot;p(x)&quot;, (0, 0.17), 0:0.1:0.2),
+        annotate = (-3, 0.14, &quot;t = $it&quot;, :left),
+    )
+    plot!(ph, x -&gt; pdf(mix)(x);
+         linewidth=3, color=:black, label=&quot;GMM Distribution&quot;,
+    )
+    return ph
+end</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">gmm_hist (generic function with 1 method)</code></pre><p>Animate sampling process over time</p><pre><code class="language-julia hljs">if isinteractive()
+    ph = gmm_hist(T)
+else
+    anim = @animate for it in [1:10; 20:10:100; 200:100:T]
+        ph = gmm_hist(it)
+    # tmp = @sprintf(&quot;%03d&quot;, it)
+    # savefig(ph, &quot;gmm-prior-sample-$ntrial,$tmp.pdf&quot;)
+    end
+    gif(anim, &quot;gmm-hist.gif&quot;, fps = 6)
+end</code></pre><img src="5b61178d.gif" alt="Example block output"/><pre><code class="language-julia hljs">prompt()
+# savefig(ph, &quot;gmm-prior-sample-$ntrial.pdf&quot;)</code></pre><p>Kernel density estimate and its score function</p><pre><code class="language-julia hljs">ntrain = 200
+train_data = rand(mix, ntrain)
+gsig = 0.9
+
+kde = MixtureModel(Normal, [(x, gsig) for x in train_data])
+pkd = deepcopy(pmp)
+plot!(pkd, pdf(kde); xaxis, label=&quot;KDE, σ=$gsig&quot;, widen=true, color=:green)
+scatter!(pkd, train_data, zeros(ntrain), label=&quot;data, N=$ntrain&quot;, color=:black)</code></pre><img src="4540a1a8.svg" alt="Example block output"/><pre><code class="language-julia hljs">prompt()
+# savefig(pkd, &quot;gmm-kde-pdf-$ntrain.pdf&quot;)
+
+pks = deepcopy(ps1)
+plot!(pks, score(kde), label=&quot;KDE score, σ=$gsig&quot;, color=:green)</code></pre><img src="073db0b2.svg" alt="Example block output"/><pre><code class="language-julia hljs">prompt()
+# savefig(pks, &quot;gmm-kde-score-$ntrain.pdf&quot;)
+
+# plot(pkd, pks; layout=(2,1))</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../01-overview/">« Score Matching overview</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.16.1 on <span class="colophon-date" title="Monday 15 December 2025 14:03">Monday 15 December 2025</span>. Using Julia version 1.12.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

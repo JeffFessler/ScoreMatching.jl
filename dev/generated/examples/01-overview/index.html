@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Score Matching overview · ScoreMatching.jl</title><meta name="title" content="Score Matching overview · ScoreMatching.jl"/><meta property="og:title" content="Score Matching overview · ScoreMatching.jl"/><meta property="twitter:title" content="Score Matching overview · ScoreMatching.jl"/><meta name="description" content="Documentation for ScoreMatching.jl."/><meta property="og:description" content="Documentation for ScoreMatching.jl."/><meta property="twitter:description" content="Documentation for ScoreMatching.jl."/><meta property="og:url" content="https://JeffFessler.github.io/ScoreMatching.jl/stable/generated/examples/01-overview/"/><meta property="twitter:url" content="https://JeffFessler.github.io/ScoreMatching.jl/stable/generated/examples/01-overview/"/><link rel="canonical" href="https://JeffFessler.github.io/ScoreMatching.jl/stable/generated/examples/01-overview/"/><script data-outdated-warner src="../../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../../assets/documenter.js"></script><script src="../../../search_index.js"></script><script src="../../../siteinfo.js"></script><script src="../../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../../assets/themeswap.js"></script><link href="../../../assets/custom.css" rel="stylesheet" type="text/css"/></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../../">ScoreMatching.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../../">Home</a></li><li><a class="tocitem" href="../../../methods/">Methods</a></li><li><span class="tocitem">Examples</span><ul><li class="is-active"><a class="tocitem" href>Score Matching overview</a><ul class="internal"><li><a class="tocitem" href="#Overview"><span>Overview</span></a></li><li><a class="tocitem" href="#Score-functions"><span>Score functions</span></a></li><li><a class="tocitem" href="#Score-matching"><span>Score matching</span></a></li><li><a class="tocitem" href="#1D-example"><span>1D example</span></a></li><li><a class="tocitem" href="#Illustration"><span>Illustration</span></a></li><li><a class="tocitem" href="#Explicit-score-matching-(ESM)-(impractical)"><span>Explicit score matching (ESM) (impractical)</span></a></li><li><a class="tocitem" href="#Maximum-likelihood-estimation"><span>Maximum-likelihood estimation</span></a></li><li><a class="tocitem" href="#Implicit-score-matching-(ISM)-(more-practical)"><span>Implicit score matching (ISM) (more practical)</span></a></li><li><a class="tocitem" href="#Regularized-score-matching-(RSM)"><span>Regularized score matching (RSM)</span></a></li><li><a class="tocitem" href="#Denoising-score-matching-(DSM)"><span>Denoising score matching (DSM)</span></a></li><li><a class="tocitem" href="#Noise-conditional-score-matching-(NCSM)"><span>Noise-conditional score-matching (NCSM)</span></a></li></ul></li><li><a class="tocitem" href="../02-sample/">Sampling</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Score Matching overview</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Score Matching overview</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/JeffFessler/ScoreMatching.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/JeffFessler/ScoreMatching.jl/blob/main/docs/lit/examples/01-overview.jl" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="01-overview"><a class="docs-heading-anchor" href="#01-overview">Score Matching overview</a><a id="01-overview-1"></a><a class="docs-heading-anchor-permalink" href="#01-overview" title="Permalink"></a></h1><p>This page introduces the Julia package <a href="https://github.com/JeffFessler/ScoreMatching.jl"><code>ScoreMatching</code></a>.</p><p>This page comes from a single Julia file: <a href="https://github.com/JeffFessler/ScoreMatching.jl/blob/main/docs/lit/examples/01-overview.jl"><code>01-overview.jl</code></a>.</p><p>You can access the source code for such Julia documentation using the &#39;Edit on GitHub&#39; link in the top right. You can view the corresponding notebook in <a href="https://nbviewer.org/">nbviewer</a> here: <a href="https://nbviewer.org/github/JeffFessler/ScoreMatching.jl/tree/gh-pages/dev/generated/examples/01-overview.ipynb"><code>01-overview.ipynb</code></a>, or open it in <a href="https://mybinder.org/">binder</a> here: <a href="https://mybinder.org/v2/gh/JeffFessler/ScoreMatching.jl/gh-pages?filepath=dev/generated/examples/01-overview.ipynb"><code>01-overview.ipynb</code></a>.</p><h3 id="Setup"><a class="docs-heading-anchor" href="#Setup">Setup</a><a id="Setup-1"></a><a class="docs-heading-anchor-permalink" href="#Setup" title="Permalink"></a></h3><p>Packages needed here.</p><pre><code class="language-julia hljs">using MIRTjim: jim, prompt
+using Distributions: Distribution, Normal, MixtureModel, logpdf, pdf
+using Distributions: Gamma, Uniform
+import Distributions: logpdf, pdf
+import ForwardDiff
+using LinearAlgebra: tr, norm
+using LaTeXStrings
+using Random: shuffle, seed!; seed!(0)
+using StatsBase: mean, std
+using Optim: optimize, BFGS, Fminbox
+import Optim: minimizer
+import Flux
+using Flux: Chain, Dense, Adam
+import Plots
+using Plots: Plot, plot, plot!, scatter, histogram, quiver!, default, gui
+using Plots.PlotMeasures: px
+using InteractiveUtils: versioninfo
+default(label=&quot;&quot;, markerstrokecolor=:auto)</code></pre><p>The following line is helpful when running this file as a script; this way it will prompt user to hit a key after each figure is displayed.</p><pre><code class="language-julia hljs">isinteractive() ? jim(:prompt, true) : prompt(:prompt);</code></pre><h2 id="Overview"><a class="docs-heading-anchor" href="#Overview">Overview</a><a id="Overview-1"></a><a class="docs-heading-anchor-permalink" href="#Overview" title="Permalink"></a></h2><p>Given <span>$T$</span> <a href="https://en.wikipedia.org/wiki/Independent_and_identically_distributed_random_variables">IID</a> training data samples <span>$\bm{x}_1, …, \bm{x}_T ∈ \mathbb{R}^N$</span>, we often want to find the parameters <span>$\bm{θ}$</span> of a model distribution <span>$p(\bm{x}; \bm{θ})$</span> that &quot;best fit&quot; the data.</p><p>Maximum-likelihood estimation is impractical for complicated models where the normalizing constant is intractable.</p><p><a href="http://jmlr.org/papers/v6/hyvarinen05a.html">Hyvärinen 2005</a> proposed an alternative called <em>score matching</em> that circumvents needing to find the normalizing constant by using the <em>score function</em> of the model distribution, defined as <span>$\bm{s}(\bm{x}; \bm{θ}) = \nabla_{\bm{x}} \log p(\bm{x}; \bm{θ}).$</span></p><h2 id="Score-functions"><a class="docs-heading-anchor" href="#Score-functions">Score functions</a><a id="Score-functions-1"></a><a class="docs-heading-anchor-permalink" href="#Score-functions" title="Permalink"></a></h2><p>Before describing score matching methods, we first illustrate what a score function looks like.</p><p>Consider the (improper) model <span>$p(\bm{x}; \bm{θ}) = \frac{1}{Z(\bm{θ})} \mathrm{e}^{-β |x_2 - x_1|^α}$</span> where here there are two parameters <span>$\bm{θ} = (β, α)$</span>, for <span>$β &gt; 0$</span> and <span>$α &gt; 1$</span>. The <em>score function</em> for this model is</p><p class="math-container">\[\bm{s}(\bm{x}; \bm{θ})
+=
+\nabla_{\bm{x}} \log p(\bm{x}; \bm{θ})
+=
+- β \nabla_{\bm{x}} |x_2 - x_1|^α
+= α β \begin{bmatrix} 1 \\ -1 \end{bmatrix}
+|x_2 - x_1|^{α-1} \mathrm{sign}(x_2 - x_1).\]</p><p>This example is related to generalized Gaussian image priors, and, for <span>$α=1$</span>, is related to total variation (TV) regularization.</p><p>Here is a visualization of this &#39;TV&#39; pdf and the score functions.</p><p>The quiver plot shows that the score function describe directions that ascend the prior.</p><pre><code class="language-julia hljs">function do_quiver!(p::Plot, x, y, dx, dy; thresh=0.02, scale=0.15)
+    tmp = d -&gt; maximum(abs, filter(!isnan, d))
+    dmax = max(tmp(dx), tmp(dy))
+    ix = 5:11:length(x)
+    iy = 5:11:length(y)
+    x, y = x .+ 0*y&#39;, 0*x .+ y&#39;
+    x = x[ix,iy]
+    y = y[ix,iy]
+    dx = dx[ix,iy] / dmax * scale
+    dy = dy[ix,iy] / dmax * scale
+    good = @. (abs(dx) &gt; thresh) | (abs(dy) &gt; thresh)
+    x = x[good]
+    y = y[good]
+    dx = dx[good]
+    dy = dy[good]
+    Plots.arrow(:open, :head, 0.001, 0.001)
+    return quiver!(p, x, y, quiver=(dx,dy);
+        aspect_ratio = 1,
+        title = &quot;TV score quiver&quot;,
+        color = :red,
+    )
+end;
+
+if !@isdefined(ptv)
+    α = 1.01 # fairly close to TV
+    β = 1
+    x1 = range(-1, 1, 101) * 2
+    x2 = range(-1, 1, 101) * 2
+    tv_pdf2 = @. exp(-β * abs(x2&#39; - x1)^α) # ignoring partition constant
+    ptv0 = jim(x1, x2, tv_pdf2; title = &quot;&#39;TV&#39; pdf&quot;, clim = (0, 1),
+        color=:cividis, xlabel = L&quot;x_1&quot;, ylabel = L&quot;x_2&quot;, prompt=false,
+    )
+    tv_score1 = @. β * abs(x2&#39; - x1)^(α-1) * sign(x2&#39; - x1)
+    ptv1 = jim(x1, x2, tv_score1; title = &quot;TV score₁&quot;, prompt=false,
+        color=:cividis, xlabel = L&quot;x_1&quot;, ylabel = L&quot;x_2&quot;, clim = (-1,1) .* 1.2,
+    )
+    tv_score2 = @. -β * abs(x2&#39; - x1)^(α-1) * sign(x2&#39; - x1)
+    ptv2 = jim(x1, x2, tv_score2; title = &quot;TV score₂&quot;, prompt=false,
+        color=:cividis, xlabel = L&quot;x_1&quot;, ylabel = L&quot;x_2&quot;, clim = (-1,1) .* 1.2,
+    )
+    ptvq = do_quiver!(deepcopy(ptv0), x1, x2, tv_score1, tv_score2)
+    ptv = plot(ptv0, ptv1, ptvq, ptv2)
+    # Plots.savefig(&quot;score-tv.pdf&quot;)
+end</code></pre><img src="fa1ce6d0.svg" alt="Example block output"/><pre><code class="language-julia hljs">prompt()</code></pre><h2 id="Score-matching"><a class="docs-heading-anchor" href="#Score-matching">Score matching</a><a id="Score-matching-1"></a><a class="docs-heading-anchor-permalink" href="#Score-matching" title="Permalink"></a></h2><p>The idea behind the score matching approach to model fitting is</p><p class="math-container">\[\hat{\bm{θ}} = \arg \min_{\bm{θ}}
+J(\bm{θ})
+,\qquad
+J(\bm{θ}) =
+\frac{1}{T} ∑_{t=1}^T
+\| \bm{s}(\bm{x}_t; \bm{θ}) - \bm{s}(\bm{x}_t) \|^2\]</p><p>where <span>$\bm{s}(\bm{x}; \bm{θ}) = \nabla_{\bm{x}} \log p(\bm{x}; \bm{θ})$</span> is the <em>score function</em> of the model distribution, and <span>$\bm{s}(\bm{x}) = \nabla_{\bm{x}} \log p(\bm{x})$</span> is the <em>score function</em> of the (typically unknown) data distribution.</p><p><a href="https://doi.org/10.1162/NECO_a_00142">Vincent, 2011</a> calls this approach <em>explicit score matching</em> (ESM).</p><h2 id="1D-example"><a class="docs-heading-anchor" href="#1D-example">1D example</a><a id="1D-example-1"></a><a class="docs-heading-anchor-permalink" href="#1D-example" title="Permalink"></a></h2><p>We begin by illustrating the score function for a simple <span>$\mathcal{N}(8, 3)$</span> distribution.</p><p>Some convenience methods</p><pre><code class="language-julia hljs">logpdf(d::Distribution) = x -&gt; logpdf(d, x)
+pdf(d::Distribution) = x -&gt; pdf(d, x)
+derivative(f::Function) = x -&gt; ForwardDiff.derivative(f, x)
+gradient(f::Function) = x -&gt; ForwardDiff.gradient(f, x)
+# hessian(f::Function) = x -&gt; ForwardDiff.hessian(f, x)
+score(d::Distribution) = derivative(logpdf(d))
+score_deriv(d::Distribution) = derivative(score(d)); # scalar x only
+
+gauss_μ = 8
+gauss_σ = 3
+gauss_disn = Expr(:call, :Normal, gauss_μ, gauss_σ)
+gauss_dist = eval(gauss_disn)
+xaxis = (L&quot;x&quot;, (-1,1).*5gauss_σ .+ gauss_μ, (-3:3)*gauss_σ .+ gauss_μ)
+left_margin = 20px; bottom_margin = 10px
+pgp = plot(pdf(gauss_dist); label=&quot;$gauss_disn pdf&quot;, color = :blue,
+    left_margin, bottom_margin,
+    xaxis, yaxis = (L&quot;p(x)&quot;, (0, 0.15), (0:3)*0.05), size=(600,200),
+)
+
+# Plots.savefig(pgp, &quot;gauss-pdf.pdf&quot;)
+prompt()
+
+ylabel_score1 = L&quot;s(x) = \frac{\mathrm{d}}{\mathrm{d}x} \, \log \ p(x)&quot;
+pgs = plot(derivative(logpdf(gauss_dist)); color=:red, xaxis, size=(600,200),
+    label = &quot;$gauss_disn score function&quot;,
+    yaxis = (ylabel_score1, (-2,2), -3:3), left_margin, bottom_margin,
+)
+
+# Plots.savefig(pgs, &quot;gauss-score.pdf&quot;)
+prompt()</code></pre><p>Same plots for a gaussian mixture model (GMM)</p><pre><code class="language-julia hljs">mix = MixtureModel(Normal, [(2,1), (8,3), (16,2)], [0.3, 0.4, 0.3])
+mix = MixtureModel(Normal, [(3,1), (13,3)], [0.4, 0.6])
+xaxis = (L&quot;x&quot;, (-4,24), [0, 3, 13, 20])
+pmp = plot(pdf(mix); label=&quot;Gaussian mixture pdf&quot;, color = :blue,
+    left_margin, bottom_margin, xaxis, size=(600,200),
+    yaxis = (L&quot;p(x)&quot;, (0, 0.17), (0:3)*0.05),
+)
+
+# Plots.savefig(pmp, &quot;mix-pdf.pdf&quot;)
+prompt()
+
+pms = plot(derivative(logpdf(mix)); color=:red, xaxis, size=(600,200),
+    label = &quot;GMM score function&quot;,
+    yaxis = (ylabel_score1, (-5,5), -4:2:4), left_margin, bottom_margin,
+)
+
+# Plots.savefig(pms, &quot;mix-score.pdf&quot;)
+prompt()</code></pre><h2 id="Illustration"><a class="docs-heading-anchor" href="#Illustration">Illustration</a><a id="Illustration-1"></a><a class="docs-heading-anchor-permalink" href="#Illustration" title="Permalink"></a></h2><p>For didactic purposes, we illustrate explicit score matching (ESM) by fitting samples from a <a href="https://en.wikipedia.org/wiki/Gamma_distribution">Gamma distribution</a> to a mixture of gaussians.</p><p>Generate training data</p><pre><code class="language-julia hljs">if !@isdefined(data)
+    T = 100
+    gamma_k = 8 # shape
+    gamma_θ = 1 # scale
+    gamma_mode = gamma_k &gt; 1 ? (gamma_k - 1) * gamma_θ : 0
+    gamma_mean = gamma_k * gamma_θ
+    gamma_std = sqrt(gamma_k) * gamma_θ
+    data_disn = Expr(:call, :Gamma, gamma_k, gamma_θ)
+    data_dis = eval(data_disn)
+    data_score = derivative(logpdf(data_dis))
+    data = Float32.(rand(data_dis, T))
+    xlims = (-1, 25)
+    xticks = [0, floor(Int, minimum(data)), gamma_mode, gamma_mean, ceil(Int, maximum(data))]
+    xticks = sort(xticks) # ticks that span the data range
+
+    pfd = scatter(data, zeros(T); xlims, xticks, color=:black)
+    plot!(pfd, pdf(data_dis); label=&quot;$data_disn pdf&quot;,
+        color = :black, xlabel = L&quot;x&quot;, ylabel = L&quot;p(x)&quot;)
+
+    psd = plot(data_score; color=:black,
+        label = &quot;$(data_disn.args[1]) score function&quot;,
+        xaxis=(L&quot;x&quot;, (1,20), xticks), ylims = (-3, 5), yticks=[0,4],
+    )
+    psdn = deepcopy(psd)
+    tmp = score(Normal(mean(data), std(data)))
+    plot!(psdn, tmp; label = &quot;Normal score function&quot;, line=:dash, color=:black)
+
+    ph = histogram(data; linecolor=:blue,
+        xlabel=L&quot;x&quot;, size=(600,300), yaxis=(&quot;count&quot;, (0,15), 0:5:15),
+        bins=-1:0.5:25, xlims, xticks, label=&quot;data histogram&quot;)
+    # Plots.savefig(ph, &quot;gamma-data.pdf&quot;)
+    plot!(ph, x -&gt; T*0.5 * pdf(data_dis)(x);
+        color=:black, label=&quot;$data_disn Distribution&quot;)
+    # Plots.savefig(ph, &quot;gamma-fit.pdf&quot;)
+end
+
+
+if false # plots for a talk
+    pdt = plot(pdf(data_dis); label=&quot;$data_disn pdf&quot;, color = :blue,
+        left_margin, bottom_margin,
+        xaxis = (L&quot;x&quot;, xlims, xticks), ylabel = L&quot;p(x)&quot;, size=(600,200))
+    pst = deepcopy(psd)
+    tmp = score(Normal(gamma_mean, gamma_std))
+    plot!(pst, tmp; label = &quot;Normal score function&quot;, size=(600,200), xlims,
+        line=:dash, color=:magenta, left_margin, bottom_margin,
+        ylabel=ylabel_score1)
+
+    # Plots.savefig(pdt, &quot;gamma-pdf.pdf&quot;)
+    # Plots.savefig(pst, &quot;gamma-score.pdf&quot;)
+end</code></pre><p>To perform unconstrained minimization of a <span>$D$</span>-component mixture, the following mapping from <span>$\mathbb{R}^{D-1}$</span> to the <span>$D$</span>-dimensional simplex is helpful. It is the inverse of the <a href="https://en.wikipedia.org/wiki/Compositional_data#Additive_logratio_transform">additive logratio transform</a>. It is related to the <a href="https://en.wikipedia.org/wiki/Softmax_function">softmax function</a>.</p><pre><code class="language-julia hljs">function map_r_s(y::AbstractVector; scale::Real = 1.0)
+    y = scale * [y; 0]
+    y .-= maximum(y) # for numerical stability
+    p = exp.(y)
+    return p / sum(p)
+end
+map_r_s(y::Real...) = map_r_s([y...])
+
+y1 = range(-1,1,101) * 9
+y2 = range(-1,1,101) * 9
+tmp = map_r_s.(y1, y2&#39;)
+pj = jim(y1, y2, tmp; title=&quot;Simplex parameterization&quot;, nrow=1)</code></pre><img src="93c5d049.svg" alt="Example block output"/><p>Define model distribution</p><pre><code class="language-julia hljs">nmix = 3 # how many gaussians in the mixture model
+function model(θ ;
+    σmin::Real = 1,
+    σmax::Real = 19,
+)
+    mu = θ[1:nmix]
+    sig = θ[nmix .+ (1:nmix)]
+    any(&lt;(σmin), sig) &amp;&amp; throw(&quot;too small σ&quot;)
+    any(&gt;(σmax), sig) &amp;&amp; throw(&quot;too big σ $sig&quot;)
+    # sig = σmin .+ exp.(sig) # ensure σ &gt; 0
+    # sig = @. σmin + (σmax - σmin) * (tanh(sig/2) + 1) / 2 # &quot;constraints&quot;
+    p = map_r_s(θ[2nmix .+ (1:(nmix-1))])
+    tmp = [(μ,σ) for (μ,σ) in zip(mu, sig)]
+    mix = MixtureModel(Normal, tmp, p)
+    return mix
+end;</code></pre><p>Define explicit score-matching cost function</p><pre><code class="language-julia hljs">function cost_esm2(x::AbstractVector{&lt;:Real}, θ)
+    model_score = score(model(θ))
+    return (0.5/T) * sum(abs2, model_score.(x) - data_score.(x))
+end;</code></pre><p>Minimize this explicit score-matching cost function:</p><pre><code class="language-julia hljs">β = 0e-4 # optional small regularizer to ensure coercive
+cost_esm1 = (θ) -&gt; cost_esm2(data, θ) + β * 0.5 * norm(θ)^2;</code></pre><p>Initial crude guess of mixture model parameters</p><pre><code class="language-julia hljs">θ0 = Float64[5, 7, 9, 1.5, 1.5, 1.5, 0, 0]; # Gamma</code></pre><p>Plot data pdf and initial model pdf</p><pre><code class="language-julia hljs">pf = deepcopy(pfd)
+plot!(pf, pdf(model(θ0)), label = &quot;Initial Gaussian mixture&quot;, color=:blue)</code></pre><img src="f23d9ae6.svg" alt="Example block output"/><pre><code class="language-julia hljs">prompt()</code></pre><p>Check descent and non-convexity</p><pre><code class="language-julia hljs">if false
+    tmp = gradient(cost_esm1)(θ0)
+    a = range(0, 9, 101)
+    h = a -&gt; cost_esm1(θ0 - a * tmp)
+    plot(a, log.(h.(a)))
+end</code></pre><h2 id="Explicit-score-matching-(ESM)-(impractical)"><a class="docs-heading-anchor" href="#Explicit-score-matching-(ESM)-(impractical)">Explicit score matching (ESM) (impractical)</a><a id="Explicit-score-matching-(ESM)-(impractical)-1"></a><a class="docs-heading-anchor-permalink" href="#Explicit-score-matching-(ESM)-(impractical)" title="Permalink"></a></h2><pre><code class="language-julia hljs">if !@isdefined(θesm)
+    lower = [fill(0, nmix); fill(1.0, nmix); fill(-Inf, nmix-1)]
+    upper = [fill(Inf, nmix); fill(Inf, nmix); fill(Inf, nmix-1)]
+    opt_esm = optimize(cost_esm1, lower, upper, θ0, Fminbox(BFGS());
+        autodiff = :forward)
+    # opt_esm = optimize(cost_esm1, θ0, BFGS(); autodiff = :forward) # unconstrained
+    θesm = minimizer(opt_esm)
+end;
+
+plot!(pf, pdf(model(θesm)), label = &quot;ESM Gaussian mixture&quot;, color=:green)</code></pre><img src="cc93280f.svg" alt="Example block output"/><pre><code class="language-julia hljs">prompt()</code></pre><p>Plot the data score and model score functions to see how well they match. The largest mismatch is in the tails of the distribution where there are few (if any) data points.</p><pre><code class="language-julia hljs">ps = deepcopy(psd)
+plot!(ps, score(model(θesm)); label = &quot;ESM score function&quot;, color=:green)</code></pre><img src="c307db03.svg" alt="Example block output"/><pre><code class="language-julia hljs">prompt()</code></pre><h2 id="Maximum-likelihood-estimation"><a class="docs-heading-anchor" href="#Maximum-likelihood-estimation">Maximum-likelihood estimation</a><a id="Maximum-likelihood-estimation-1"></a><a class="docs-heading-anchor-permalink" href="#Maximum-likelihood-estimation" title="Permalink"></a></h2><p>This toy example is simple enough that we can apply ML estimation to it directly. In fact, ML estimation is a seemingly more practical optimization problem than score matching in this case.</p><p>As expected, ML estimation leads to a lower negative log-likelihood.</p><pre><code class="language-julia hljs">negloglike(θ) = (-1/T) * sum(logpdf(model(θ)), data)
+opt_ml = optimize(negloglike, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
+θml = minimizer(opt_ml)
+negloglike.([θml, θesm, θ0])</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">3-element Vector{Float64}:
+ 2.28225368245204
+ 2.343063856230189
+ 2.620547866486972</code></pre><p>Curiously, ML estimation here leads to much worse fits to the pdf than score matching, even though we initialized the ML optimizer with the score-matching parameters. Perhaps the landscape of the log-likelihood is less well-behaved than that of the SM cost.</p><pre><code class="language-julia hljs">plot!(pf, pdf(model(θml)), label = &quot;ML Gaussian mixture&quot;, color=:magenta)
+plot!(ps, score(model(θml)), label = &quot;ML score function&quot;, color=:magenta)
+plot(pf, ps)</code></pre><img src="bfc0b8cb.svg" alt="Example block output"/><pre><code class="language-julia hljs">prompt()</code></pre><h2 id="Implicit-score-matching-(ISM)-(more-practical)"><a class="docs-heading-anchor" href="#Implicit-score-matching-(ISM)-(more-practical)">Implicit score matching (ISM) (more practical)</a><a id="Implicit-score-matching-(ISM)-(more-practical)-1"></a><a class="docs-heading-anchor-permalink" href="#Implicit-score-matching-(ISM)-(more-practical)" title="Permalink"></a></h2><p>The above ESM fitting process used <code>score(data_dis)</code>, the score-function of the data distribution, which is unknown in practical situations.</p><p><a href="http://jmlr.org/papers/v6/hyvarinen05a.html">Hyvärinen 2005</a> derived the following more practical cost function that is independent of the unknown data score function:</p><p class="math-container">\[J_{\mathrm{ISM}}(\bm{θ}) =
+\frac{1}{T} ∑_{t=1}^T
+∑_{i=1}^N ∂_i s_i(\bm{x}_t; \bm{θ})
+ + \frac{1}{2} | s_i(\bm{x}_t; \bm{θ}) |^2,\]</p><p>ignoring a constant that is independent of <span>$θ,$</span> where</p><p class="math-container">\[∂_i s_i(\bm{x}; \bm{θ})
+=
+\frac{∂}{∂ x_i} s_i(\bm{x}; \bm{θ})
+=
+\frac{∂^2}{∂ x_i^2} \log p(\bm{x}; \bm{θ}).\]</p><p>(For large models this version is still a bit impractical because it depends on the diagonal elements of the Hessian of the log prior. Subsequent pages deal with that issue.)</p><p><a href="https://doi.org/10.1162/NECO_a_00142">Vincent, 2011</a> calls this approach <em>implicit score matching</em> (ISM).</p><p>Implicit score-matching cost function</p><pre><code class="language-julia hljs">function cost_ism2(x::AbstractVector{&lt;:Real}, θ)
+    tmp = model(θ)
+    model_score = score(tmp)
+    return (1/T) * (sum(score_deriv(tmp), x) +
+        0.5 * sum(abs2 ∘ model_score, x))
+end;</code></pre><p>Minimize this implicit score-matching cost function:</p><pre><code class="language-julia hljs">if !@isdefined(θism)
+    cost_ism1 = (θ) -&gt; cost_ism2(data, θ)
+    opt_ism = optimize(cost_ism1, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
+    ##opt_ism = optimize(cost_ism1, θ0, BFGS(); autodiff = :forward)
+    θism = minimizer(opt_ism)
+    cost_ism1.([θism, θesm, θml])
+end;
+
+plot!(pf, pdf(model(θism)), label = &quot;ISM Gaussian mixture&quot;, color=:cyan)
+plot!(ps, score(model(θism)), label = &quot;ISM score function&quot;, color=:cyan)
+pfs = plot(pf, ps)</code></pre><img src="2fbc9c7c.svg" alt="Example block output"/><pre><code class="language-julia hljs">prompt()</code></pre><p>Curiously the supposedly equivalent ISM cost function works much worse. Like the ML estimate, the first two <span>$σ$</span> values are stuck at the <code>lower</code> limit. Could it be local extrema? More investigation is needed!</p><p>Ideally (as <span>$T → ∞$</span>), the ESM and ISM cost functions should differ by a constant independent of <span>$θ$</span>. Here they differ for small, finite <span>$T$</span>.</p><pre><code class="language-julia hljs">tmp = [θ0, θesm, θml, θism]
+cost_esm1.(tmp) - cost_ism1.(tmp)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">4-element Vector{Float64}:
+ 0.08616722371394606
+ 0.08596904072926642
+ 0.24967328260997293
+ 0.26172629070744885</code></pre><h2 id="Regularized-score-matching-(RSM)"><a class="docs-heading-anchor" href="#Regularized-score-matching-(RSM)">Regularized score matching (RSM)</a><a id="Regularized-score-matching-(RSM)-1"></a><a class="docs-heading-anchor-permalink" href="#Regularized-score-matching-(RSM)" title="Permalink"></a></h2><p><a href="https://doi.org/10.5555/2997189.2997315">Kingma &amp; LeCun, 2010</a> reported some instability of ISM and suggested a regularized version corresponding to the following (practical) cost function:</p><p class="math-container">\[J_{\mathrm{RSM}}(\bm{θ}) =
+J_{\mathrm{ISM}}(\bm{θ}) + λ R(\bm{θ})
+,\quad
+R(\bm{θ}) =
+\frac{1}{T} ∑_{t=1}^T
+∑_{i=1}^N | ∂_i s_i(\bm{x}_t; \bm{θ}) |^2.\]</p><p>Regularized score matching (RSM) cost function</p><pre><code class="language-julia hljs">function cost_rsm2(x::AbstractVector{&lt;:Real}, θ, λ)
+    mod = model(θ)
+    model_score = score(mod)
+    tmp = score_deriv(mod).(x)
+    R = sum(abs2, tmp)
+    J_ism = sum(tmp) + 0.5 * sum(abs2 ∘ model_score, x)
+    return (1/T) * (J_ism + λ * R)
+end;</code></pre><p>Minimize this RSM cost function:</p><pre><code class="language-julia hljs">λ = 4e-1
+cost_rsm1 = (θ) -&gt; cost_rsm2(data, θ, λ)
+
+if !@isdefined(θrsm)
+    opt_rsm = optimize(cost_rsm1, lower, upper, θ0, Fminbox(BFGS());
+        autodiff = :forward)
+    θrsm = minimizer(opt_rsm)
+    cost_rsm1.([θrsm, θ0, θism, θesm, θml])
+end</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">5-element Vector{Float64}:
+ -0.11336964204446337
+  0.07895853368771694
+ -0.0653067252284454
+ -0.07456763291919351
+ -0.07460264962152811</code></pre><pre><code class="language-julia hljs">plot!(pf, pdf(model(θism)), label = &quot;RSM Gaussian mixture&quot;, color=:red)
+plot!(ps, score(model(θism)), label = &quot;RSM score function&quot;, color=:red)
+pfs = plot(pf, ps)</code></pre><img src="583c7d9c.svg" alt="Example block output"/><pre><code class="language-julia hljs">prompt()</code></pre><p>Sadly the regularized score matching (RSM) approach did not help much here. Increasing <span>$λ$</span> led to <code>optimize</code> errors.</p><h2 id="Denoising-score-matching-(DSM)"><a class="docs-heading-anchor" href="#Denoising-score-matching-(DSM)">Denoising score matching (DSM)</a><a id="Denoising-score-matching-(DSM)-1"></a><a class="docs-heading-anchor-permalink" href="#Denoising-score-matching-(DSM)" title="Permalink"></a></h2><p><a href="https://doi.org/10.1162/NECO_a_00142">Vincent, 2011</a> proposed a practical approach called <em>denoising score matching</em> (DSM) that matches the model score function to the score function of a Parzen density estimate of the form</p><p class="math-container">\[q_{σ}(\bm{x}) = \frac{1}{T} ∑_{t=1}^T g_{σ}(\bm{x} - \bm{x}_t)\]</p><p>where <span>$g_{σ}$</span> denotes a Gaussian distribution <span>$\mathcal{N}(\bm{0}, σ \bm{I})$</span>.</p><p>Statistically, this approach is equivalent (in expectation) to adding noise to the measurements, and then applying the ESM approach. The DSM cost function is</p><p class="math-container">\[J_{\mathrm{DSM}}(\bm{θ}) =
+\frac{1}{T} ∑_{t=1}^T
+\mathbb{E}_{\bm{z} ∼ g_{σ}}\left[
+\frac{1}{2}
+\left\|
+\bm{s}(\bm{x}_t + \bm{z}; \bm{θ}) + \frac{\bm{z}}{σ^2}
+\right\|_2^2
+\right].\]</p><p>A benefit of this approach is that it does not require differentiating the model score function w.r.t <span>$\bm{x}$</span>.</p><p>The inner expectation over <span>$g_{σ}$</span> is typically analytically intractable, so in practice we replace it with a sample mean where we draw <span>$M ≥ 1$</span> values of <span>$\bm{z}$</span> per training sample, leading to the following practical cost function</p><p class="math-container">\[J_{\mathrm{DSM}, \, M}(\bm{θ}) =
+\frac{1}{T} ∑_{t=1}^T
+\frac{1}{M} ∑_{m=1}^M
+\frac{1}{2}
+\left\|
+s(\bm{x}_t + \bm{z}_{t,m}; \bm{θ}) + \frac{\bm{z}_{t,m}}{σ^2}
+\right\|_2^2,\]</p><p>where the noise samples <span>$\bm{z}_{t,m}$</span> are IID.</p><p>The next code blocks investigate this DSM approach for somewhat arbitrary choices of <span>$M$</span> and <span>$σ$</span>.</p><pre><code class="language-julia hljs">seed!(0)
+M = 9
+σdsm = 1.0
+zdsm = σdsm * randn(T, M);</code></pre><p>Define denoising score-matching cost function, where input <code>data</code> has size <span>$(T,)$</span> and input <code>z</code> has size <span>$(T,M)$</span>.</p><pre><code class="language-julia hljs">function cost_dsm2(data::AbstractVector{&lt;:Real}, z::AbstractArray{&lt;:Real}, θ)
+    model_score = score(model(θ))
+    tmp = model_score.(data .+ z) # (T,M) # add noise to data
+    return (0.5/T/M) * sum(abs2, tmp + z ./ σdsm^2)
+end;
+
+if !@isdefined(θdsm)
+    cost_dsm1 = (θ) -&gt; cost_dsm2(data, zdsm, θ) # + β * 0.5 * norm(θ)^2;
+    opt_dsm = optimize(cost_dsm1, lower, upper, θ0, Fminbox(BFGS());
+        autodiff = :forward)
+    θdsm = minimizer(opt_dsm)
+end;
+
+plot!(pf, pdf(model(θdsm)); label = &quot;DSM Gaussian mixture&quot;, color=:orange)
+plot!(ps, score(model(θdsm)); label = &quot;DSM score function&quot;, color=:orange)
+pfs = plot(pf, ps)</code></pre><img src="635a2c15.svg" alt="Example block output"/><p>At least for this case, DSM worked better than ML, ISM and RSM.</p><pre><code class="language-julia hljs">prompt()</code></pre><h2 id="Noise-conditional-score-matching-(NCSM)"><a class="docs-heading-anchor" href="#Noise-conditional-score-matching-(NCSM)">Noise-conditional score-matching (NCSM)</a><a id="Noise-conditional-score-matching-(NCSM)-1"></a><a class="docs-heading-anchor-permalink" href="#Noise-conditional-score-matching-(NCSM)" title="Permalink"></a></h2><p>Above we used a single noise value for DSM. Contemporary methods use a range of noise values with noise-conditional score models, e.g., <a href="https://openreview.net/forum?id=PxTIG12RRHS">Song et al. ICLR 2021</a>.</p><p>A representative formulation uses a <span>$σ^2$</span>-weighted expectation like the following:</p><p class="math-container">\[J_{\mathrm{NCSM}}(\bm{θ}) ≜
+\mathbb{E}_{σ ∼ f(σ)}\left[ σ^2 J_{\mathrm{DSM}}(\bm{θ}, σ) \right],\]</p><p class="math-container">\[J_{\mathrm{DSM}}(\bm{θ}, σ) ≜
+\frac{1}{T} ∑_{t=1}^T
+\mathbb{E}_{\bm{z} ∼ g_{σ}}\left[
+\frac{1}{2}
+\left\|
+\bm{s}(\bm{x}_t + \bm{z}; \bm{θ}, σ) + \frac{\bm{z}}{σ^2}
+\right\|_2^2
+\right].\]</p><p>for some distribution <span>$f(σ)$</span> of noise levels.</p><p>Here we use a multi-layer perceptron (MLP) to model the 1D noise-conditional score function <span>$\bm{s}(\bm{x}; \bm{θ}, σ)$</span>. We use a residual approach with data normalization and the baseline score of a standard normal distribution.</p><pre><code class="language-julia hljs">function make_nnmodel(
+    data; # (2,?)
+    nweight = [2, 8, 16, 8, 1], # 2 inputs: [x, σ] for NCSM
+    μdata = mean(data),
+    σdata = std(data),
+)
+    layers = [Dense(nweight[i-1], nweight[i], Flux.gelu) for i in 2:length(nweight)]
+    # Change of variables y ≜ (x - μdata) / σ(x + z)
+    pick1(x) = transpose(x[1,:]) # extract 1D data as a row vector
+    pick2(x) = transpose(x[2,:]) # extract σ as a row vector
+    quad(σ) = sqrt(σ^2 + σdata^2) # σ(x + z) (quadrature)
+    scale1(x) = [(pick1(x) .- μdata) ./ quad.(pick2(x)); pick2(x)] # standardize
+    # The baseline score function here is just -y; use in a &quot;ResNet&quot; way:
+    tmp1 = Flux.Parallel(.-, Chain(layers...), pick1)
+    scale2(σ) = quad.(σ) / σdata^2 # &quot;un-standardize&quot; for final score w.r.t x
+    tmp2 = Flux.Parallel(.*, tmp1, scale2 ∘ pick2)
+    return Chain(scale1, tmp2)
+end;</code></pre><p>Function to make data pairs suitable for NN training. Each use of this function&#39;s output is akin to <span>$M$</span> epochs of <code>data</code>. Use <code>shuffle</code> in case we use mini-batches later.</p><pre><code class="language-julia hljs">function dsm_data(
+    M::Int = 9,
+    σdist = Uniform(0.2,2.0),
+)
+    σdsm = Float32.(rand(σdist, T, M))
+    z = σdsm .* randn(Float32, T, M)
+    tmp1 = shuffle(data) .+ z # (T,M)
+    tmp2 = transpose([vec(tmp1) vec(σdsm)]) # (2, T*M)
+    return (tmp2, -transpose(vec(z ./ σdsm.^2)))
+end
+
+if !@isdefined(nnmodel)
+    nnmodel = make_nnmodel(data;)
+
+    # σ^2-weighted MSE loss:
+    loss3(model, x, y) = mean(abs2, (model(x) - y) .* transpose(x[2,:])) / 2
+
+    iters = 2^9
+    dataset = [dsm_data() for i in 1:iters]
+    state1 = Flux.setup(Adam(), nnmodel)
+    @info &quot;begin train&quot;
+    @time Flux.train!(loss3, nnmodel, dataset, state1)
+    @info &quot;end train&quot;
+end
+
+nnscore = x -&gt; nnmodel([x, 0.4])[1] # lower end of σdist range
+tmp = deepcopy(ps)
+plot!(tmp, nnscore; label = &quot;NN score function&quot;, color=:blue)</code></pre><img src="40747d6d.svg" alt="Example block output"/><p>The noise-conditional NN score model worked OK. Training &quot;coarse to fine&quot; might work better than the <code>Uniform</code> approach above.</p><pre><code class="language-julia hljs">prompt()
+
+if false # look at the set of NN score functions
+    tmp = deepcopy(psd)
+    for s in 0.1:0.2:1.6
+        plot!(tmp, x -&gt; nnmodel([x, s])[1]; label = &quot;NN score function $s&quot;)
+    end
+    gui()
+end</code></pre><p>Plots of data distribution with various added noise levels</p><pre><code class="language-julia hljs">σlist = [0.0005, 0.05, 0.1, 0.5, 1, 5]
+nσ = length(σlist)
+pl = Array{Any}(undef, nσ)
+for (i, σ) in enumerate(σlist)
+    local mix = MixtureModel(Normal, [(d,σ) for d in data])
+    xm = range(0, 20, step = min(σ/5, 0.1))
+    local tmp = pdf(mix).(xm)
+    pl[i] = plot(xm, tmp; color = :red,
+        xaxis = (L&quot;x&quot;, (0, 20), [0, gamma_mean, 18]),
+        yaxis = (L&quot;q_σ(x)&quot;, [0,]), title = &quot;σ = $σ&quot;,
+    )
+    # plot!(pl, xm, tmp / maximum(tmp), label = &quot;σ = $σ&quot;)
+end
+plot(pl...)
+
+# Plots.savefig(&quot;data-qsig.pdf&quot;)
+prompt()</code></pre><h3 id="Reproducibility"><a class="docs-heading-anchor" href="#Reproducibility">Reproducibility</a><a id="Reproducibility-1"></a><a class="docs-heading-anchor-permalink" href="#Reproducibility" title="Permalink"></a></h3><p>This page was generated with the following version of Julia:</p><pre><code class="language-julia hljs">using InteractiveUtils: versioninfo
+io = IOBuffer(); versioninfo(io); split(String(take!(io)), &#39;\n&#39;)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">12-element Vector{SubString{String}}:
+ &quot;Julia Version 1.12.2&quot;
+ &quot;Commit ca9b6662be4 (2025-11-20 16:25 UTC)&quot;
+ &quot;Build Info:&quot;
+ &quot;  Official https://julialang.org release&quot;
+ &quot;Platform Info:&quot;
+ &quot;  OS: Linux (x86_64-linux-gnu)&quot;
+ &quot;  CPU: 4 × AMD EPYC 7763 64-Core Processor&quot;
+ &quot;  WORD_SIZE: 64&quot;
+ &quot;  LLVM: libLLVM-18.1.7 (ORCJIT, znver3)&quot;
+ &quot;  GC: Built with stock GC&quot;
+ &quot;Threads: 1 default, 1 interactive, 1 GC (on 4 virtual cores)&quot;
+ &quot;&quot;</code></pre><p>And with the following package versions</p><pre><code class="language-julia hljs">import Pkg; Pkg.status()</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Status `~/work/ScoreMatching.jl/ScoreMatching.jl/docs/Project.toml`
+  [31c24e10] Distributions v0.25.122
+  [e30172f5] Documenter v1.16.1
+  [587475ba] Flux v0.16.7
+  [f6369f11] ForwardDiff v1.3.0
+  [b964fa9f] LaTeXStrings v1.4.0
+  [98b081ad] Literate v2.21.0
+  [170b2178] MIRTjim v0.26.0
+  [429524aa] Optim v1.13.3
+  [91a5bcdd] Plots v1.41.2
+  [0d6d0290] ScoreMatching v0.0.1 `~/work/ScoreMatching.jl/ScoreMatching.jl`
+  [2913bbd2] StatsBase v0.34.9
+  [1986cc42] Unitful v1.27.0
+  [b77e0a4c] InteractiveUtils v1.11.0
+  [37e2e46d] LinearAlgebra v1.12.0
+  [9a3f8284] Random v1.11.0</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../../methods/">« Methods</a><a class="docs-footer-nextpage" href="../02-sample/">Sampling »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.16.1 on <span class="colophon-date" title="Monday 15 December 2025 14:03">Monday 15 December 2025</span>. Using Julia version 1.12.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
