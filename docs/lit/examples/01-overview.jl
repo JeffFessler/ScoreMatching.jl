@@ -12,25 +12,27 @@ This page introduces the Julia package
 
 # Packages needed here.
 
-#src using ScoreMatching
-using MIRTjim: jim, prompt
+using ADTypes: AutoForwardDiff
 using Distributions: Distribution, Normal, MixtureModel, logpdf, pdf
 using Distributions: Gamma, Uniform
 import Distributions: logpdf, pdf
-import ForwardDiff
-using LinearAlgebra: tr, norm
-using LaTeXStrings
-using Random: shuffle, seed!; seed!(0)
-using StatsBase: mean, std
-using Optim: optimize, BFGS, Fminbox
-import Optim: minimizer
 import Flux
 using Flux: Chain, Dense, Adam
-#src import ReverseDiff
+import ForwardDiff
+using InteractiveUtils: versioninfo
+using LinearAlgebra: tr, norm
+using LaTeXStrings
+using MIRTjim: jim, prompt
+using Optim: optimize, BFGS, Fminbox
+import Optim: minimizer
 import Plots
 using Plots: Plot, plot, plot!, scatter, histogram, quiver!, default, gui
 using Plots.PlotMeasures: px
-using InteractiveUtils: versioninfo
+using Random: shuffle, seed!; seed!(0)
+#src import ReverseDiff
+#src using ScoreMatching
+using StatsBase: mean, std
+
 default(label="", markerstrokecolor=:auto)
 
 
@@ -408,8 +410,8 @@ if !@isdefined(θesm)
     lower = [fill(0, nmix); fill(1.0, nmix); fill(-Inf, nmix-1)]
     upper = [fill(Inf, nmix); fill(Inf, nmix); fill(Inf, nmix-1)]
     opt_esm = optimize(cost_esm1, lower, upper, θ0, Fminbox(BFGS());
-        autodiff = :forward)
-    ## opt_esm = optimize(cost_esm1, θ0, BFGS(); autodiff = :forward) # unconstrained
+        autodiff = AutoForwardDiff())
+    ## opt_esm = optimize(cost_esm1, θ0, BFGS(); autodiff = AutoForwardDiff()) # unconstrained
     θesm = minimizer(opt_esm)
 end;
 
@@ -446,8 +448,8 @@ ML estimation leads to a lower negative log-likelihood.
 
 
 negloglike(θ) = (-1/T) * sum(logpdf(model(θ)), data)
-opt_ml = optimize(negloglike, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
-#src opt_ml = optimize(negloglike, θ0, BFGS(); autodiff = :forward)
+opt_ml = optimize(negloglike, lower, upper, θ0, Fminbox(BFGS()); autodiff = AutoForwardDiff())
+#src opt_ml = optimize(negloglike, θ0, BFGS(); autodiff = AutoForwardDiff())
 θml = minimizer(opt_ml)
 negloglike.([θml, θesm, θ0])
 
@@ -520,8 +522,8 @@ end;
 # Minimize this implicit score-matching cost function:
 if !@isdefined(θism)
     cost_ism1 = (θ) -> cost_ism2(data, θ)
-    opt_ism = optimize(cost_ism1, lower, upper, θ0, Fminbox(BFGS()); autodiff = :forward)
-    ##opt_ism = optimize(cost_ism1, θ0, BFGS(); autodiff = :forward)
+    opt_ism = optimize(cost_ism1, lower, upper, θ0, Fminbox(BFGS()); autodiff = AutoForwardDiff())
+    ##opt_ism = optimize(cost_ism1, θ0, BFGS(); autodiff = AutoForwardDiff())
     θism = minimizer(opt_ism)
     cost_ism1.([θism, θesm, θml])
 end;
@@ -587,7 +589,7 @@ cost_rsm1 = (θ) -> cost_rsm2(data, θ, λ)
 
 if !@isdefined(θrsm)
     opt_rsm = optimize(cost_rsm1, lower, upper, θ0, Fminbox(BFGS());
-        autodiff = :forward)
+        autodiff = AutoForwardDiff())
     θrsm = minimizer(opt_rsm)
     cost_rsm1.([θrsm, θ0, θism, θesm, θml])
 end
@@ -690,7 +692,7 @@ end;
 if !@isdefined(θdsm)
     cost_dsm1 = (θ) -> cost_dsm2(data, zdsm, θ) # + β * 0.5 * norm(θ)^2;
     opt_dsm = optimize(cost_dsm1, lower, upper, θ0, Fminbox(BFGS());
-        autodiff = :forward)
+        autodiff = AutoForwardDiff())
     θdsm = minimizer(opt_dsm)
 end;
 
