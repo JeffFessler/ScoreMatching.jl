@@ -11,20 +11,21 @@ WIP on sampling using a score model.
 # Packages needed here.
 
 #src using ScoreMatching
-using MIRTjim: jim, prompt
 using Distributions: Distribution, Normal, MixtureModel, logpdf, pdf
 import Distributions # var, mean
 import Distributions: logpdf, pdf
 import ForwardDiff # derivative, gradient
 using LaTeXStrings
-using Printf: @sprintf
-using Random: shuffle, seed!; seed!(0)
-using StatsBase: mean, std
+using MIRTjim: jim, prompt
 using Plots: Plot, plot, plot!, scatter, scatter!, histogram, quiver!
 using Plots: @animate, gif
 import Plots # Animation
 using Plots: default, gui, savefig
 using Plots.PlotMeasures: px
+using Printf: @sprintf
+using Random: shuffle, seed!; seed!(0)
+using StatsBase: mean, std
+
 default(label="", markerstrokecolor=:auto, linewidth=2,
  labelfontsize = 14, tickfontsize = 12, legendfontsize = 14,
 )
