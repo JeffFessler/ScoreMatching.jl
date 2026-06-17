@@ -1,3 +1,3 @@
 # runtests.jl
 
-#include("aqua.jl")
+include("aqua.jl")
